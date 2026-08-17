@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # ============================================================
+  # PostgreSQL Database
+  # ============================================================
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: wa_gateway
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # Django Backend (Python)
+  # ============================================================
+  django:
+    build:
+      context: ./django
+      dockerfile: Dockerfile
+    command: >
+      sh -c "python manage.py makemigrations api &&
+             python manage.py migrate &&
+             python manage.py createsuperuserauto ||
+             true &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./django:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=*
+      - USE_SQLITE=false
+      - DB_NAME=wa_gateway
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=db
+      - DB_PORT=5432
+      - WORKER_BASE_URL=http://worker:3000
+      - DJANGO_WEBHOOK_URL=http://django:8000/webhook/incoming
+      - DEFAULT_COUNTRY_CODE=91
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ============================================================
+  # Node.js Baileys Worker
+  # ============================================================
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    command: node index.js
+    volumes:
+      - ./worker:/app
+      - worker_auth:/app/auth_states
+    ports:
+      - "3000:3000"
+    environment:
+      - WORKER_PORT=3000
+      - DJANGO_WEBHOOK_URL=http://django:8000/webhook/incoming
+      - LOG_LEVEL=info
+    depends_on:
+      - django
+
+volumes:
+  pgdata:
+  worker_auth:

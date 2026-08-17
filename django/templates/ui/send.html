@@ -1,0 +1,133 @@
+{% extends "ui/base.html" %}
+{% block title %}Send Message{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Send Message</div>
+    <div class="page-subtitle">Single, bulk, or scheduled messages</div>
+  </div>
+</div>
+
+{% if not all_devices %}
+<div class="alert alert-info">
+  No devices found. <a href="{% url 'ui:devices' %}">Add a device</a> first.
+</div>
+{% else %}
+
+<div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start;" class="send-layout">
+
+<div class="card">
+  <form id="send-form">
+    <!-- device selector -->
+    <div class="form-group">
+      <label class="form-label" for="sel-device">From Device</label>
+      <select class="form-control" name="device" id="sel-device">
+        {% for d in all_devices %}
+        <option value="{{ d.id }}" data-token="{{ d.device_token }}"
+          {% if d.status != 'connect' %}disabled{% endif %}
+          {% if request.GET.device == d.id|stringformat:"s" %}selected{% endif %}>
+          {{ d.name }} ({{ d.phone_number }}){% if d.status != 'connect' %} — offline{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      {% if not devices %}<div class="form-hint" style="color:var(--err-fg)">No devices are connected. <a href="{% url 'ui:devices' %}">Connect one →</a></div>{% endif %}
+    </div>
+
+    <!-- target -->
+    <div class="form-group">
+      <label class="form-label" for="target">Target Number(s)</label>
+      <textarea class="form-control" name="target" id="target" rows="3"
+        placeholder="Single: 919876543210&#10;Bulk (comma-separated): 919876543210|Alice,919812345678|Bob&#10;With variables: 919876543210|Alice|Manager"></textarea>
+      <div class="form-hint">Bulk: comma-separated. Use <code>|name|var1</code> for variable substitution. Limit: 1000 recipients.</div>
+    </div>
+
+    <!-- message -->
+    <div class="form-group">
+      <label class="form-label" for="message">Message</label>
+      <textarea class="form-control" name="message" id="message" rows="5"
+        placeholder="Hello {name}, this is a message from {var1}!"></textarea>
+      <div class="form-hint">Use <code>{name}</code>, <code>{var1}</code>, etc. to personalise bulk messages.</div>
+    </div>
+
+    <!-- options row -->
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="delay">Delay (seconds or range)</label>
+        <input class="form-control" type="text" name="delay" id="delay" value="0" placeholder="e.g. 2 or 1-5">
+        <div class="form-hint">Random delay between recipients in bulk sends.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="followup">Follow-up after (seconds)</label>
+        <input class="form-control" type="number" name="followup" id="followup" value="0" min="0">
+        <div class="form-hint">0 = no follow-up message.</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="schedule">Schedule (Unix timestamp)</label>
+        <input class="form-control" type="number" name="schedule" id="schedule" value="0" min="0">
+        <div class="form-hint">0 = send now. Paste a future Unix timestamp to schedule.</div>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px;">
+        <div class="form-check">
+          <input type="checkbox" name="typing" id="typing">
+          <label class="form-label" for="typing" style="margin:0;cursor:pointer;">Show typing indicator</label>
+        </div>
+      </div>
+    </div>
+
+    <div id="send-result"></div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round"/></svg>
+      Send
+    </button>
+  </form>
+</div>
+
+<!-- sidebar: tips + templates -->
+<div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Quick Tips</div>
+    <ul style="font-size:.83rem;color:var(--ink-light);line-height:1.8;padding-left:16px;">
+      <li>Bulk: <code>91xxx|Alice,91yyy|Bob</code></li>
+      <li>Variable: <code>{name}</code>, <code>{var1}</code>…</li>
+      <li>Delay: <code>1-5</code> = random 1–5s</li>
+      <li>Follow-up in seconds (0 = off)</li>
+      <li>Schedule = Unix timestamp (0 = now)</li>
+    </ul>
+  </div>
+
+  {% if all_devices %}
+  {% for d in all_devices %}
+  {% if d.templates.all %}
+  <div class="card">
+    <div class="card-title" style="font-size:.85rem;">Templates — {{ d.name }}</div>
+    {% for tpl in d.templates.all %}
+    <div style="margin-bottom:10px;">
+      <div style="font-size:.82rem;font-weight:600;color:var(--ink);">{{ tpl.name }}</div>
+      <div style="font-size:.8rem;color:var(--muted);margin:3px 0 6px;">{{ tpl.content|truncatechars:80 }}</div>
+      <button class="btn btn-sm btn-outline" data-tpl="{{ tpl.content }}">Use</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+</div>
+
+</div><!-- grid -->
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* expand send layout on narrow screens */
+document.addEventListener('DOMContentLoaded', () => {
+  const layout = document.querySelector('.send-layout');
+  if (!layout) return;
+  if (window.innerWidth < 800) layout.style.gridTemplateColumns = '1fr';
+});
+</script>
+{% endblock %}

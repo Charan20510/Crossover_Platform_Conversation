@@ -1,0 +1,29 @@
+# Node
+node_modules/
+worker/node_modules/
+worker/auth_states/
+
+# Python
+__pycache__/
+*.pyc
+django/db.sqlite3
+django/staticfiles/
+venv/
+.venv/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+.claude

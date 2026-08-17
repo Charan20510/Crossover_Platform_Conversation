@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Gateway Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #1a1a1a; }
+        .header { background: linear-gradient(135deg, #25D366, #128C7E); color: white; padding: 20px 30px; }
+        .header h1 { font-size: 24px; }
+        .header p { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+        .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+        .section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .section h2 { font-size: 18px; margin-bottom: 16px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { text-align: left; padding: 10px 12px; background: #f8f9fa; border-bottom: 2px solid #e0e0e0; font-weight: 600; color: #555; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+        tr:hover { background: #fafafa; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .badge-connect { background: #d4edda; color: #155724; }
+        .badge-disconnect { background: #f8d7da; color: #721c24; }
+        .badge-free { background: #e2e3e5; color: #383d41; }
+        .badge-paid { background: #d1ecf1; color: #0c5460; }
+        .stat-card { display: inline-block; background: #f8f9fa; border-radius: 8px; padding: 16px 24px; margin-right: 16px; margin-bottom: 16px; min-width: 140px; }
+        .stat-card .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; color: #128C7E; }
+        .api-doc { background: #1e1e2e; color: #a6accd; border-radius: 8px; padding: 16px; font-family: 'Fira Code', monospace; font-size: 13px; overflow-x: auto; margin-top: 12px; }
+        .api-doc .method { color: #25D366; font-weight: bold; }
+        .api-doc .url { color: #7aa2f7; }
+        .api-doc .comment { color: #6c7086; }
+        .btn { display: inline-block; padding: 8px 20px; background: #25D366; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; text-decoration: none; }
+        .btn:hover { background: #128C7E; }
+        .token-box { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 12px; word-break: break-all; }
+        .empty { text-align: center; padding: 30px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📱 WhatsApp Gateway Dashboard</h1>
+        <p>Fonnte-compatible WhatsApp API Gateway — Django + Node.js + Baileys</p>
+    </div>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="section">
+            <h2>Overview</h2>
+            <div class="stat-card">
+                <div class="label">Accounts</div>
+                <div class="value">{{ accounts|length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Devices</div>
+                <div class="value">{{ devices|length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Connected</div>
+                <div class="value">{% for d in devices %}{% if d.status == 'connect' %}1{% endif %}{% endfor %}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Messages Sent</div>
+                <div class="value">{% for d in devices %}{{ d.messages_sent }}{% endfor %}</div>
+            </div>
+        </div>
+
+        <!-- Devices -->
+        <div class="section">
+            <h2>Devices</h2>
+            {% if devices %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone Number</th>
+                        <th>Status</th>
+                        <th>Package</th>
+                        <th>Quota</th>
+                        <th>Messages Sent</th>
+                        <th>Token</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for device in devices %}
+                    <tr>
+                        <td>{{ device.name }}</td>
+                        <td>{{ device.phone_number }}</td>
+                        <td>
+                            {% if device.status == 'connect' %}
+                                <span class="badge badge-connect">Connected</span>
+                            {% else %}
+                                <span class="badge badge-disconnect">Disconnected</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if device.package == 'free' %}badge-free{% else %}badge-paid{% endif %}">
+                                {{ device.package }}
+                            </span>
+                        </td>
+                        <td>{{ device.quota }}</td>
+                        <td>{{ device.messages_sent }}</td>
+                        <td><div class="token-box">{{ device.device_token|truncatechars:20 }}...</div></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+                <div class="empty">No devices yet. Use the API to add one.</div>
+            {% endif %}
+        </div>
+
+        <!-- API Quick Reference -->
+        <div class="section">
+            <h2>API Quick Reference</h2>
+            <p>Base URL: <code>http://localhost:8000</code></p>
+            <div class="api-doc">
+<span class="comment"># 1. Add a device (requires account token)</span>
+<span class="method">POST</span> <span class="url">/add-device</span>
+Authorization: <account_token>
+Body: {"name": "My Device", "device": "919876543210"}
+
+<span class="comment"># 2. Get QR code to link WhatsApp</span>
+<span class="method">POST</span> <span class="url">/qr</span>
+Authorization: <device_token>
+Body: {"type": "qr"}
+
+<span class="comment"># 3. Send a message</span>
+<span class="method">POST</span> <span class="url">/send</span>
+Authorization: <device_token>
+Body: {"target": "919876543210", "message": "Hello from gateway!"}
+
+<span class="comment"># 4. Send bulk (comma-separated)</span>
+<span class="method">POST</span> <span class="url">/send</span>
+Authorization: <device_token>
+Body: {"target": "919876543210|John,919812345678|Jane", "message": "Hi {name}!", "delay": "1-5"}
+
+<span class="comment"># 5. Validate numbers</span>
+<span class="method">POST</span> <span class="url">/validate</span>
+Authorization: <device_token>
+Body: {"target": "919876543210,919812345678", "countryCode": "91"}
+
+<span class="comment"># 6. Check device info</span>
+<span class="method">POST</span> <span class="url">/device</span>
+Authorization: <device_token>
+
+<span class="comment"># 7. Disconnect device</span>
+<span class="method">POST</span> <span class="url">/disconnect</span>
+Authorization: <device_token>
+            </div>
+        </div>
+
+        <!-- Admin -->
+        <div class="section">
+            <h2>Admin Panel</h2>
+            <p>Access the Django admin at <code>http://localhost:8000/admin/</code></p>
+            <p>Default credentials: <code>admin</code> / <code>admin123</code></p>
+            <a href="/admin/" class="btn">Open Admin</a>
+        </div>
+    </div>
+</body>
+</html>

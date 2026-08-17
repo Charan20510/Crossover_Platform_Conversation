@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create account — WA Gateway</title>
+  <link rel="stylesheet" href="{% static 'ui/style.css' %}">
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-card" style="width:440px;">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.659 1.438 5.168L2 22l4.979-1.418A9.95 9.95 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+        </svg>
+      </div>
+      <div class="login-logo-text">WA Gateway</div>
+    </div>
+
+    <div class="login-title">Create your account</div>
+    <div class="login-sub">Sign up to manage your WhatsApp devices.</div>
+
+    {% if errors %}
+    <div class="alert alert-error">
+      {% for e in errors %}
+      <div>{{ e }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'ui:signup' %}">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input
+          class="form-control"
+          type="text"
+          id="username"
+          name="username"
+          value="{{ form.username }}"
+          autocomplete="username"
+          autofocus
+          required
+          maxlength="150"
+          placeholder="e.g. john_doe"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">Email address</label>
+        <input
+          class="form-control"
+          type="email"
+          id="email"
+          name="email"
+          value="{{ form.email }}"
+          autocomplete="email"
+          required
+          placeholder="you@example.com"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="full_name">Full name</label>
+        <input
+          class="form-control"
+          type="text"
+          id="full_name"
+          name="full_name"
+          value="{{ form.full_name }}"
+          autocomplete="name"
+          placeholder="John Doe"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input
+          class="form-control"
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="new-password"
+          required
+          placeholder="At least 8 characters"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="confirm">Confirm password</label>
+        <input
+          class="form-control"
+          type="password"
+          id="confirm"
+          name="confirm"
+          autocomplete="new-password"
+          required
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px;">
+        Create account →
+      </button>
+    </form>
+
+    <p style="margin-top:20px;font-size:.85rem;color:var(--muted);text-align:center;">
+      Already have an account?
+      <a href="{% url 'ui:login' %}">Sign in</a>
+    </p>
+  </div>
+</div>
+<div id="toast-container"></div>
+<script src="{% static 'ui/app.js' %}"></script>
+</body>
+</html>
