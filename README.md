@@ -24,7 +24,7 @@ small **Node.js + Baileys** worker microservice.
   Your Client App                    Django Backend                Node.js Worker
   (cURL / code)                      (Python)                      (Baileys)
                                                 
-  POST /send ───────────────────────▶ api/views.py                 
+  POST /send ───────────────────────▶ whatsapp/views.py            
                                       │ validates token            
                                       │ checks quota                
                                       │ enqueues to worker ───────▶ worker/index.js
@@ -189,7 +189,7 @@ When you ran `createsuperuserauto`, it printed two tokens:
 
 You can also find tokens at:
 - Django admin: http://localhost:8000/admin/ (login: admin / admin123)
-- Dashboard: http://localhost:8000/dashboard
+- Browser UI: http://localhost:8000/app/ (Devices / Mail Accounts / Profile pages each have a copyable token box)
 
 Set them as shell variables for convenience:
 
@@ -379,7 +379,7 @@ def webhook():
 | `/reschedule` | POST | device token | Reschedule a pending message |
 | `/add-device` | POST | account token | Create a new device |
 | `/webhook/incoming` | POST | internal | Worker → Django webhook |
-| `/dashboard` | GET | none | HTML dashboard |
+| `/app/` | GET | session login | Browser UI (WhatsApp / Mail / Unified) |
 | `/admin/` | GET | Django admin | Admin panel |
 
 ---
@@ -418,21 +418,33 @@ wa_gateway/
 │   │   ├── urls.py
 │   │   ├── wsgi.py
 │   │   └── asgi.py
-│   ├── api/                          ← API app
-│   │   ├── __init__.py
-│   │   ├── models.py                ← Device, Message, Contact, Account...
-│   │   ├── views.py                 ← All API endpoint logic
-│   │   ├── urls.py                   ← URL routing
-│   │   ├── auth.py                  ← Token authentication
-│   │   ├── utils.py                 ← Phone normalization, variables, etc.
-│   │   ├── admin.py                 ← Django admin config
-│   │   ├── apps.py
-│   │   ├── migrations/
-│   │   └── management/
-│   │       └── commands/
-│   │           └── createsuperuserauto.py
-│   └── templates/
-│       └── dashboard.html           ← Simple HTML dashboard
+│   ├── core/                         ← Shared: no models
+│   │   ├── utils.py                 ← Phone normalization, worker HTTP, crypto
+│   │   ├── auth.py                  ← Shared token-extraction helper
+│   │   ├── choices.py               ← Shared model status choices
+│   │   ├── context_processors.py    ← Derives active nav section from URL namespace
+│   │   ├── ui_urls.py / ui_views.py ← Unified overview + All Inbox (reads whatsapp+mail)
+│   │   ├── templatetags/nav.py      ← Sidebar active-link tag
+│   │   ├── templates/core/          ← base.html (shared shell) + nav/ includes
+│   │   └── static/core/             ← style.css (shared design system) + core.js
+│   ├── accounts/                     ← Account model, login/signup/profile/reset
+│   │   ├── models.py                ← Account
+│   │   ├── auth.py                  ← Account-token lookup
+│   │   ├── ui_urls.py / views.py    ← Auth + profile pages
+│   │   ├── templates/accounts/
+│   │   └── management/commands/createsuperuserauto.py
+│   ├── whatsapp/                     ← Device, Message, Contact, MessageTemplate,
+│   │   │                               AutoReply, IncomingMessage
+│   │   ├── views.py / api_urls.py   ← Fonnte-compatible token API (unchanged paths)
+│   │   ├── ui_views.py / ui_urls.py ← Browser UI, mounted at /app/whatsapp/
+│   │   ├── templates/whatsapp/
+│   │   └── static/whatsapp/whatsapp.js
+│   ├── mail/                         ← MailAccount, Email, IncomingEmail
+│   │   ├── views.py / api_urls.py   ← Mail token API, mounted at /mail/*, /webhook/mail
+│   │   ├── ui_views.py / ui_urls.py ← Browser UI, mounted at /app/mail/
+│   │   ├── templates/mail/
+│   │   └── static/mail/mail.js
+│   └── api/                          ← Legacy: migration history only (no code)
 ├── worker/                           ← Node.js Baileys worker
 │   ├── package.json
 │   ├── index.js                     ← Express HTTP server
