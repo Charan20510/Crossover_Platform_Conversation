@@ -11,8 +11,17 @@ echo "  WhatsApp Gateway - Dev Startup"
 echo "============================================"
 
 # ---- Load .env ----
+# Read line-by-line and pass each KEY=value to `export` as a single already-
+# expanded argument, so punctuation in values (the secret key contains
+# # $ * ! %) is never re-parsed as shell syntax the way sourcing the file
+# directly would.
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    export "$line"
+  done < .env
 fi
 
 # ---- Defaults ----
@@ -38,6 +47,27 @@ if ! command -v node &> /dev/null; then
   exit 1
 fi
 
+# ---- Ensure Postgres is up (skipped when USE_SQLITE=true) ----
+if [ "$(echo "$USE_SQLITE" | tr 'A-Z' 'a-z')" != "true" ]; then
+  if ! command -v pg_isready &> /dev/null; then
+    echo "ERROR: USE_SQLITE=false but the Postgres client tools aren't installed."
+    echo "       brew install postgresql@16   (or set USE_SQLITE=true in .env)"
+    exit 1
+  fi
+  if ! pg_isready -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -q; then
+    echo "   Postgres not running - starting brew service..."
+    brew services start postgresql@16
+    for _ in $(seq 1 15); do
+      pg_isready -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -q && break
+      sleep 1
+    done
+    pg_isready -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -q || {
+      echo "ERROR: Postgres did not come up. Check /opt/homebrew/var/log/postgresql@16.log"
+      exit 1
+    }
+  fi
+fi
+
 echo ""
 echo "1. Setting up Python virtual environment..."
 cd django
@@ -49,7 +79,6 @@ pip install -q -r requirements.txt
 
 echo ""
 echo "2. Running Django migrations..."
-python manage.py makemigrations api --noinput 2>/dev/null || true
 python manage.py migrate --noinput
 
 echo ""
