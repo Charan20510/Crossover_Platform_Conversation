@@ -1,5 +1,5 @@
 """
-API views — Fonnte-compatible WhatsApp Gateway endpoints.
+API views — Fonnte-compatible Messaging Platform endpoints.
 Moved from api/views.py; URL paths are unchanged (see whatsapp/api_urls.py).
 """
 

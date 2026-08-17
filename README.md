@@ -1,4 +1,4 @@
-# WhatsApp Gateway — Fonnte Clone (Django + Node.js + Baileys)
+# Messaging Platform — Fonnte Clone (Django + Node.js + Baileys)
 
 A complete, runnable WhatsApp API gateway that replicates Fonnte's functionality.
 The main codebase is **Django (Python)**; the WhatsApp WebSocket layer runs on a
@@ -153,7 +153,7 @@ node index.js
 You should see:
 ```
 ========================================
-  WhatsApp Gateway Worker (Baileys)
+  Messaging Platform — WhatsApp Worker (Baileys)
   Listening on port 3000
 ========================================
 ```

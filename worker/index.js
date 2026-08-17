@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * WhatsApp Gateway Worker — Express HTTP server
+ * Messaging Platform — WhatsApp Worker — Express HTTP server
  *
  * This is the Node.js microservice that talks to WhatsApp via Baileys.
  * The Django backend calls this worker's HTTP endpoints to:
@@ -283,7 +283,7 @@ app.get('/sessions', (req, res) => {
 // ============================================================
 app.listen(PORT, () => {
   console.log('========================================');
-  console.log('  WhatsApp Gateway Worker (Baileys)');
+  console.log('  Messaging Platform — WhatsApp Worker (Baileys)');
   console.log('  Listening on port ' + PORT);
   console.log('  Django webhook: ' + (process.env.DJANGO_WEBHOOK_URL || 'http://localhost:8000/webhook/incoming'));
   console.log('========================================');

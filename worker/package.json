@@ -1,7 +1,7 @@
 {
   "name": "wa-gateway-worker",
   "version": "1.0.0",
-  "description": "Node.js Baileys worker for WhatsApp Gateway (Fonnte clone)",
+  "description": "Node.js Baileys worker for Messaging Platform (Fonnte clone)",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {

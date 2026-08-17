@@ -1,5 +1,5 @@
 /* =========================================================
-   WhatsApp Gateway UI — minimalist light palette
+   Messaging Platform UI — minimalist light palette
    Accent: muted teal (#3b7a6f), not the default AI indigo
    ========================================================= */
 
@@ -82,7 +82,14 @@ a:hover { text-decoration: underline; }
   width: var(--sidebar-w);
   padding-right: 20px;
   flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+/* "Messaging Platform" is longer than the old "WA Gateway" brand text --
+   drop a notch so it fits the fixed 220px sidebar-width column on one line
+   without needing to widen --sidebar-w (which would resize the sidebar too). */
+.topbar-brand span { font-size: .92rem; }
 .topbar-brand svg { color: var(--accent); }
 
 /* ── topbar section tabs (WhatsApp / Mail / Unified) ─────────────────────── */

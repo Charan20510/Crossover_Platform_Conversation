@@ -1,6 +1,6 @@
 """
 Django settings for wa_gateway project.
-WhatsApp API Gateway - Django backend (Fonnte clone)
+Messaging Platform - Django backend (Fonnte clone)
 """
 
 from pathlib import Path
@@ -127,7 +127,7 @@ EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",
     "django.core.mail.backends.console.EmailBackend",
 )
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "WA Gateway <noreply@wa-gateway.local>")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Messaging Platform <noreply@wa-gateway.local>")
 
 # SMTP settings (only used when EMAIL_BACKEND is set to smtp)
 if os.environ.get("EMAIL_HOST"):

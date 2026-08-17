@@ -7,7 +7,7 @@
 set -e
 
 echo "============================================"
-echo "  WhatsApp Gateway - Dev Startup"
+echo "  Messaging Platform - Dev Startup"
 echo "============================================"
 
 # ---- Load .env ----
