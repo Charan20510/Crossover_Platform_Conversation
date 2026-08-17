@@ -53,7 +53,9 @@ ROOT_URLCONF = "wa_gateway.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        # No project-level templates/ dir — every template now lives in its
+        # owning app's templates/<app>/ directory, found via APP_DIRS.
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -61,6 +63,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.nav",
             ],
         },
     },
@@ -105,12 +108,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+# No project-level static/ dir — every asset now lives in its owning app's
+# static/<app>/ directory, found via the AppDirectoriesFinder default.
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Auth redirects for @login_required
-LOGIN_URL = "/app/login/"
+LOGIN_URL = "/app/accounts/login/"
 LOGIN_REDIRECT_URL = "/app/"
 
 # ── Email (password reset) ────────────────────────────────────────────────────

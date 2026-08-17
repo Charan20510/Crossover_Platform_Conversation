@@ -1,0 +1,5 @@
+<nav class="topbar-tabs">
+  <a href="{% url 'whatsapp:dashboard' %}" class="topbar-tab {% if nav_section == 'whatsapp' %}active{% endif %}">WhatsApp</a>
+  <a href="{% url 'mail:dashboard' %}" class="topbar-tab {% if nav_section == 'mail' %}active{% endif %}">Mail</a>
+  <a href="{% url 'core:overview' %}" class="topbar-tab {% if nav_section == 'unified' %}active{% endif %}">Unified</a>
+</nav>

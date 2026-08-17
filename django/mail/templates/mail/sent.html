@@ -1,0 +1,66 @@
+{% extends "core/base.html" %}
+{% block title %}Sent Emails{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Sent Emails</div>
+    <div class="page-subtitle">Up to 200 most recent emails for your account</div>
+  </div>
+  <a href="{% url 'mail:compose' %}" class="btn btn-primary btn-sm">New Email</a>
+</div>
+
+<!-- filter bar -->
+<form method="get" class="filter-bar" style="margin-bottom:16px;">
+  <select class="form-control" name="mail_account" onchange="this.form.submit()">
+    <option value="">All accounts</option>
+    {% for m in mail_accounts %}
+    <option value="{{ m.id }}" {% if mail_filter == m.id|stringformat:"s" %}selected{% endif %}>{{ m.name }}</option>
+    {% endfor %}
+  </select>
+  <select class="form-control" name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    <option value="process" {% if status_filter == 'process' %}selected{% endif %}>Processing</option>
+    <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+    <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Sent</option>
+    <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
+  </select>
+  {% if mail_filter or status_filter %}
+  <a href="{% url 'mail:sent' %}" class="btn btn-ghost btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  {% if emails %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>To</th>
+          <th>Subject</th>
+          <th>Status</th>
+          <th>Account</th>
+          <th>Sent</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in emails %}
+        <tr>
+          <td style="font-family:monospace;font-size:.84rem;white-space:nowrap;">{{ e.to_addr }}</td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.subject|default:"(no subject)" }}</td>
+          <td><span class="badge badge-{{ e.status }}">{{ e.get_status_display }}</span></td>
+          <td>{{ e.mail_account.name }}</td>
+          <td style="white-space:nowrap;font-size:.8rem;color:var(--muted);">{{ e.created_at|date:"d M, H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">📋</div>
+    <p>No emails found{% if mail_filter or status_filter %} for selected filters{% endif %}.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

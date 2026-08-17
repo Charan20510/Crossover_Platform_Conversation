@@ -15,11 +15,25 @@ def health(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("health", health),
-    # Browser UI (session-based, account-scoped)
-    path("app/", include("api.ui_urls")),
-    # Redirect bare root to the UI dashboard
+
+    # Browser UI (session-based, account-scoped). Section-prefixed apps must
+    # come before the bare "app/" include (core: unified section, the landing
+    # page) so their own patterns get first crack at matching.
+    path("app/accounts/", include("accounts.ui_urls")),
+    path("app/whatsapp/", include("whatsapp.ui_urls")),
+    path("app/mail/",     include("mail.ui_urls")),
+    path("app/",          include("core.ui_urls")),
+
+    # Redirect bare root to the UI
     re_path(r"^$", RedirectView.as_view(url="/app/", permanent=False)),
-    # Fonnte-compatible API endpoints
-    path("api/", include("api.urls")),
-    path("", include("api.urls")),  # root-level endpoints like Fonnte
+
+    # Fonnte-compatible token API — paths unchanged from the pre-refactor
+    # single api.urls module. Included twice (at /api/ and at root, like
+    # Fonnte) under distinct namespaces so the two copies never fight over
+    # the same reverse() name — nothing currently reverses these by name,
+    # but this keeps that true instead of leaving it to luck.
+    path("api/", include(("whatsapp.api_urls", "whatsapp_api"), namespace="whatsapp_api_prefixed")),
+    path("api/", include(("mail.api_urls", "mail_api"), namespace="mail_api_prefixed")),
+    path("",     include(("whatsapp.api_urls", "whatsapp_api"), namespace="whatsapp_api")),
+    path("",     include(("mail.api_urls", "mail_api"), namespace="mail_api")),
 ]

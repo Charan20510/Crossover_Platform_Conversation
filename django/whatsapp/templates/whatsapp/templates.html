@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+{% block title %}Templates{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Message Templates</div>
+    <div class="page-subtitle">Save and reuse message content for quick sending</div>
+  </div>
+</div>
+
+<!-- device picker -->
+<div class="card" style="margin-bottom:16px;">
+  <form method="get">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin:0;flex:1;min-width:180px;">
+        <label class="form-label">Select Device</label>
+        <select class="form-control" name="device" onchange="this.form.submit()">
+          <option value="">— choose a device —</option>
+          {% for d in devices %}
+          <option value="{{ d.id }}" {% if selected_device.id == d.id %}selected{% endif %}>{{ d.name }} ({{ d.phone_number }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if selected_device %}
+
+<!-- create / edit form -->
+<div class="card" style="margin-bottom:16px;" id="tpl-form-card">
+  <div class="card-title" id="tpl-form-title">New Template</div>
+  <form method="post" action="{% url 'whatsapp:templates' %}?device={{ selected_device.id }}" id="tpl-form">
+    {% csrf_token %}
+    <input type="hidden" name="device" value="{{ selected_device.id }}">
+    <input type="hidden" name="action" id="tpl-action" value="create">
+    <input type="hidden" name="tpl_id" id="tpl-id-field" value="">
+    <div class="form-group">
+      <label class="form-label" for="tpl-name">Template Name</label>
+      <input class="form-control" type="text" id="tpl-name" name="name" required placeholder="e.g. Welcome Message" maxlength="100">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="tpl-content">Content</label>
+      <textarea class="form-control" id="tpl-content" name="content" rows="5" required
+        placeholder="Hello {name}, welcome! Your {var1} is ready."></textarea>
+      <div class="form-hint">Use <code>{name}</code>, <code>{var1}</code>… for bulk personalisation.</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn btn-primary">Save Template</button>
+      <button type="button" class="btn btn-ghost" onclick="resetTplForm()">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- template list -->
+<div class="card">
+  <div class="card-title">Templates for {{ selected_device.name }} ({{ templates|length }})</div>
+  {% if templates %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Preview</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td style="font-weight:600;">{{ t.name }}</td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem;color:var(--ink-light);">
+            {{ t.content|truncatechars:100 }}
+          </td>
+          <td style="font-size:.8rem;color:var(--muted);white-space:nowrap;">{{ t.created_at|date:"d M Y" }}</td>
+          <td>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-outline edit-tpl-btn"
+                data-tpl-id="{{ t.id }}"
+                data-tpl-name="{{ t.name|escape }}"
+                data-tpl-content="{{ t.content|escape }}">
+                Edit
+              </button>
+              <form method="post" action="{% url 'whatsapp:templates' %}?device={{ selected_device.id }}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="device" value="{{ selected_device.id }}">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="tpl_id" value="{{ t.id }}">
+                <button type="submit" class="btn btn-sm btn-danger"
+                  onclick="return confirm('Delete this template?')">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">📝</div>
+    <p>No templates yet. Create one above.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="card">
+  <div class="empty">
+    <div class="empty-icon">📝</div>
+    <p>Select a device above to manage its templates.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editTpl(id, name, content) {
+  document.getElementById('tpl-action').value = 'edit';
+  document.getElementById('tpl-id-field').value = id;
+  document.getElementById('tpl-name').value = name;
+  document.getElementById('tpl-content').value = content;
+  document.getElementById('tpl-form-title').textContent = 'Edit Template';
+  document.getElementById('tpl-form-card').scrollIntoView({ behavior: 'smooth' });
+}
+function resetTplForm() {
+  document.getElementById('tpl-action').value = 'create';
+  document.getElementById('tpl-id-field').value = '';
+  document.getElementById('tpl-name').value = '';
+  document.getElementById('tpl-content').value = '';
+  document.getElementById('tpl-form-title').textContent = 'New Template';
+}
+document.querySelectorAll('.edit-tpl-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    editTpl(btn.dataset.tplId, btn.dataset.tplName, btn.dataset.tplContent);
+  });
+});
+</script>
+{% endblock %}

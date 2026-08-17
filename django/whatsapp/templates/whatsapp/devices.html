@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+{% block title %}Devices{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Devices</div>
+    <div class="page-subtitle">Manage your linked WhatsApp numbers</div>
+  </div>
+</div>
+
+<!-- add device -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-title">Add a Device</div>
+  <form id="add-device-form" data-account-token="{{ account.account_token }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="dev-name">Display Name</label>
+        <input class="form-control" type="text" id="dev-name" name="name" placeholder="My Business Phone" maxlength="30" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="dev-phone">Phone Number (with country code)</label>
+        <input class="form-control" type="text" id="dev-phone" name="phone" placeholder="919876543210" required>
+        <div class="form-hint">No + or spaces. Include country code, e.g. 91 for India.</div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Device</button>
+  </form>
+</div>
+
+<!-- device list -->
+<div class="card">
+  <div class="card-title">Your Devices ({{ devices|length }})</div>
+  {% if devices %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Number</th>
+          <th>Status</th>
+          <th>Package</th>
+          <th>Quota</th>
+          <th>Sent</th>
+          <th>Token</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in devices %}
+        <tr>
+          <td style="font-weight:600;">{{ d.name }}</td>
+          <td style="font-family:monospace;font-size:.84rem;">{{ d.phone_number }}</td>
+          <td>
+            <span class="badge badge-{{ d.status }}">
+              {% if d.status == 'connect' %}Connected{% else %}Disconnected{% endif %}
+            </span>
+          </td>
+          <td><span class="badge {% if d.package == 'free' %}badge-free{% else %}badge-paid{% endif %}">{{ d.package }}</span></td>
+          <td>{{ d.quota }}</td>
+          <td>{{ d.messages_sent }}</td>
+          <td>
+            <div class="token-box" data-full="{{ d.device_token }}" title="Click to copy">
+              {{ d.device_token|truncatechars:18 }}…
+            </div>
+          </td>
+          <td>
+            <div class="device-actions">
+              {% if d.status != 'connect' %}
+              <button class="btn btn-sm btn-primary"
+                data-action="connect"
+                data-device-id="{{ d.id }}"
+                data-token="{{ d.device_token }}"
+                data-phone="{{ d.phone_number }}">
+                Connect
+              </button>
+              {% else %}
+              <button class="btn btn-sm btn-danger"
+                data-action="disconnect"
+                data-token="{{ d.device_token }}">
+                Disconnect
+              </button>
+              {% endif %}
+              <a href="{% url 'whatsapp:send' %}?device={{ d.id }}" class="btn btn-sm btn-outline">Send</a>
+              <button class="btn btn-sm btn-danger"
+                data-action="delete-device"
+                data-token="{{ d.device_token }}"
+                data-name="{{ d.name|escapejs }}">Delete</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">📱</div>
+    <p>No devices yet. Use the form above to add one.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

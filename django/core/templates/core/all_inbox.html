@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}
+{% block title %}All Inbox{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">All Inbox</div>
+    <div class="page-subtitle">WhatsApp + Mail, merged</div>
+  </div>
+</div>
+
+<div class="card">
+  {% if items %}
+    {% for m in items %}
+    <div class="msg-item">
+      <div class="msg-avatar">{{ m.name|first|upper|default:m.sender|first|upper }}</div>
+      <div class="msg-body">
+        <div class="msg-sender">
+          {{ m.name|default:m.sender }}
+          <span class="badge {% if m.channel == 'whatsapp' %}badge-connect{% else %}badge-info{% endif %}" style="margin-left:6px;">
+            {% if m.channel == 'whatsapp' %}WhatsApp{% else %}Mail{% endif %}
+          </span>
+        </div>
+        <div class="msg-text">{{ m.message }}</div>
+      </div>
+      <div class="msg-time">{{ m.received_at|timesince }} ago</div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">💬</div>
+    <p>No messages received yet.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

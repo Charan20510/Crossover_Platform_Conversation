@@ -1,0 +1,131 @@
+{% extends "core/base.html" %}
+{% block title %}Unified Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Unified Dashboard</div>
+    <div class="page-subtitle">WhatsApp + Mail overview for {{ account.name }}</div>
+  </div>
+</div>
+
+<!-- stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">WhatsApp Devices</div>
+    <div class="stat-value" data-count="{{ devices|length }}">{{ devices|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Mail Accounts</div>
+    <div class="stat-value" data-count="{{ mail_accounts|length }}">{{ mail_accounts|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">WA Connected</div>
+    <div class="stat-value" data-count="{{ wa_connected }}">{{ wa_connected }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Mail Connected</div>
+    <div class="stat-value" data-count="{{ mail_connected }}">{{ mail_connected }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">WA Sent</div>
+    <div class="stat-value" data-count="{{ wa_sent }}">{{ wa_sent }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Emails Sent</div>
+    <div class="stat-value" data-count="{{ mail_sent }}">{{ mail_sent }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" data-count="{{ pending_count }}" style="color:var(--warn-fg)">{{ pending_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Failed</div>
+    <div class="stat-value" data-count="{{ failed_count }}" style="color:var(--err-fg)">{{ failed_count }}</div>
+  </div>
+</div>
+
+<!-- channel overview -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;" class="unified-grid">
+  <div class="card">
+    <div class="card-title">
+      WhatsApp
+      <a href="{% url 'whatsapp:dashboard' %}" style="float:right;font-size:.82rem;font-weight:400;">Open →</a>
+    </div>
+    {% if devices %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Number</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for d in devices %}
+          <tr>
+            <td>{{ d.name }}</td>
+            <td style="font-family:monospace;font-size:.84rem;">{{ d.phone_number }}</td>
+            <td><span class="badge badge-{{ d.status }}">{% if d.status == 'connect' %}Connected{% else %}Disconnected{% endif %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📱</div><p>No devices yet.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      Mail
+      <a href="{% url 'mail:dashboard' %}" style="float:right;font-size:.82rem;font-weight:400;">Open →</a>
+    </div>
+    {% if mail_accounts %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for m in mail_accounts %}
+          <tr>
+            <td>{{ m.name }}</td>
+            <td style="font-family:monospace;font-size:.84rem;">{{ m.email_address }}</td>
+            <td><span class="badge badge-{{ m.status }}">{% if m.status == 'connect' %}Connected{% else %}Disconnected{% endif %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📧</div><p>No mail accounts yet.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- combined recent activity -->
+<div class="card">
+  <div class="card-title">Recent Activity (WhatsApp + Mail)</div>
+  {% if recent_activity %}
+    {% for m in recent_activity %}
+    <div class="msg-item">
+      <div class="msg-avatar">{{ m.name|first|upper|default:m.sender|first|upper }}</div>
+      <div class="msg-body">
+        <div class="msg-sender">
+          {{ m.name|default:m.sender }}
+          <span class="badge {% if m.channel == 'whatsapp' %}badge-connect{% else %}badge-info{% endif %}" style="margin-left:6px;">
+            {% if m.channel == 'whatsapp' %}WhatsApp{% else %}Mail{% endif %}
+          </span>
+        </div>
+        <div class="msg-text">{{ m.message }}</div>
+      </div>
+      <div class="msg-time">{{ m.received_at|timesince }} ago</div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">💬</div>
+    <p>No activity yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+@media (max-width: 800px) { .unified-grid { grid-template-columns: 1fr !important; } }
+</style>
+{% endblock %}
