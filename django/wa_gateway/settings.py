@@ -30,7 +30,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
-    "api",
+    "api",       # legacy: migration history only, do not add models here
+    "core",
+    "accounts",
+    "whatsapp",
+    "mail",
 ]
 
 MIDDLEWARE = [
