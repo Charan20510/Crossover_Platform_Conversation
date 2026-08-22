@@ -1,0 +1,107 @@
+{% extends "mail/base_mail.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block rc_body %}
+<section class="rc-wide">
+  <div class="rc-col-head"><span>Settings</span></div>
+
+  <!-- ── preferences ─────────────────────────────────────── -->
+  <div class="rc-card">
+    <h2>Preferences</h2>
+    <label class="rc-field"><span>Rows per page</span>
+      <select id="rc-settings-page-size">
+        {% for s in page_sizes %}<option value="{{ s }}" {% if s == page_size %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="rc-field"><span>Theme</span>
+      <button type="button" class="rc-btn" data-action="theme-toggle"><span data-theme-label>Light mode</span></button>
+    </label>
+  </div>
+
+  <!-- ── mailboxes ───────────────────────────────────────── -->
+  <div class="rc-card">
+    <h2>Mailboxes</h2>
+    <table class="rc-table">
+      <thead><tr><th>Name</th><th>Address</th><th>Status</th><th>Sent</th><th>Last sync</th><th></th></tr></thead>
+      <tbody>
+        {% for m in mailboxes %}
+        <tr {% if mailbox and m.id == mailbox.id %}class="active"{% endif %}>
+          <td>{{ m.name }}</td>
+          <td class="mono">{{ m.email_address }}</td>
+          <td><span class="rc-pill {{ m.status }}">{% if m.status == 'connect' %}Connected{% else %}Disconnected{% endif %}</span></td>
+          <td>{{ m.emails_sent }}</td>
+          <td class="rc-muted">{% if m.last_sync_at %}{{ m.last_sync_at|timesince }} ago{% else %}never{% endif %}</td>
+          <td class="rc-actions">
+            <button class="rc-btn" data-action="mailbox-select" data-id="{{ m.id }}">Use</button>
+            <button class="rc-btn" data-action="mailbox-connect" data-id="{{ m.id }}">{% if m.status == 'connect' %}Reconnect{% else %}Connect{% endif %}</button>
+            <button class="rc-btn danger" data-action="mailbox-delete" data-id="{{ m.id }}" data-name="{{ m.name }}">Delete</button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="rc-muted">No mailboxes yet — add one below.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── add mailbox ─────────────────────────────────────── -->
+  <div class="rc-card">
+    <h2>Add a mailbox</h2>
+    <form id="rc-mailbox-form" class="rc-grid2">
+      <label class="rc-field"><span>Display name</span><input name="name" maxlength="30" required></label>
+      <label class="rc-field"><span>Email address</span><input name="email_address" type="email" required></label>
+      <label class="rc-field"><span>IMAP/SMTP username</span><input name="username" placeholder="usually the address"></label>
+      <label class="rc-field"><span>Password / app password</span><input name="password" type="password" required></label>
+      <label class="rc-field"><span>IMAP host</span><input name="imap_host" placeholder="imap.example.com" required></label>
+      <label class="rc-field"><span>IMAP port</span><input name="imap_port" type="number" value="993"></label>
+      <label class="rc-field"><span>SMTP host</span><input name="smtp_host" placeholder="smtp.example.com" required></label>
+      <label class="rc-field"><span>SMTP port</span><input name="smtp_port" type="number" value="587"></label>
+      <div><button type="submit" class="rc-btn primary">Add mailbox</button></div>
+    </form>
+    <p class="rc-muted rc-note">
+      Credentials are encrypted at rest and never rendered into this page.
+    </p>
+  </div>
+
+  <!-- ── how-to ──────────────────────────────────────────── -->
+  <div class="rc-card">
+    <h2>How to set up a new mailbox</h2>
+    <ol class="rc-steps">
+      <li><b>Turn on IMAP</b> in your email provider's settings.</li>
+      <li><b>Get an app password</b> — see the table below. Your normal password won't work if 2-step verification is on.</li>
+      <li><b>Fill the form above</b> — name, address, app password and your provider's hosts. Leave <i>IMAP/SMTP username</i> blank unless your provider differs from your address; ports 993 / 587 suit almost everyone.</li>
+      <li><b>Click Add mailbox</b>, then <b>Connect</b> on its row in <i>Mailboxes</i> above — the status turns <span class="rc-pill connect">Connected</span>.</li>
+      <li><b>Click Use</b> to make it active, then open Inbox.</li>
+    </ol>
+    <h3>Provider settings</h3>
+    <table class="rc-table">
+      <thead><tr><th>Provider</th><th>IMAP host</th><th>SMTP host</th><th>App password</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Gmail</td><td class="mono">imap.gmail.com</td><td class="mono">smtp.gmail.com</td>
+          <td><a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> — needs 2-Step Verification on</td>
+        </tr>
+        <tr>
+          <td>Outlook / Microsoft 365</td><td class="mono">outlook.office365.com</td><td class="mono">smtp.office365.com</td>
+          <td><a href="https://account.microsoft.com/security" target="_blank" rel="noopener">account.microsoft.com/security</a> → Advanced security options → App passwords</td>
+        </tr>
+        <tr>
+          <td>Yahoo</td><td class="mono">imap.mail.yahoo.com</td><td class="mono">smtp.mail.yahoo.com</td>
+          <td><a href="https://login.yahoo.com/account/security" target="_blank" rel="noopener">login.yahoo.com/account/security</a> → Generate app password</td>
+        </tr>
+        <tr>
+          <td>Zoho</td><td class="mono">imap.zoho.com</td><td class="mono">smtp.zoho.com</td>
+          <td><a href="https://accounts.zoho.com" target="_blank" rel="noopener">accounts.zoho.com</a> → Security → App passwords</td>
+        </tr>
+        <tr>
+          <td>Other / self-hosted</td><td class="rc-muted">ask your host</td><td class="rc-muted">ask your host</td>
+          <td class="rc-muted">Your normal mailbox password</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="rc-muted rc-note">
+      Work or school accounts may have app passwords disabled — ask your admin to enable IMAP and SMTP AUTH.
+    </p>
+  </div>
+</section>
+{% endblock %}

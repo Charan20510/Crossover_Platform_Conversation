@@ -2,6 +2,8 @@
 URL configuration for wa_gateway project.
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.http import JsonResponse
@@ -34,6 +36,12 @@ urlpatterns = [
     # but this keeps that true instead of leaving it to luck.
     path("api/", include(("whatsapp.api_urls", "whatsapp_api"), namespace="whatsapp_api_prefixed")),
     path("api/", include(("mail.api_urls", "mail_api"), namespace="mail_api_prefixed")),
+    path("api/", include(("social.api_urls", "social_api"), namespace="social_api_prefixed")),
     path("",     include(("whatsapp.api_urls", "whatsapp_api"), namespace="whatsapp_api")),
     path("",     include(("mail.api_urls", "mail_api"), namespace="mail_api")),
+    path("",     include(("social.api_urls", "social_api"), namespace="social_api")),
 ]
+
+if settings.DEBUG:
+    # Prod should serve MEDIA_URL via the web server / a real storage backend.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

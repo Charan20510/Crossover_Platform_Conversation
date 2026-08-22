@@ -27,3 +27,7 @@ Thumbs.db
 # Logs
 *.log
 .claude
+
+# Local notes
+overview.MD
+research.md

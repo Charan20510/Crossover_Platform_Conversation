@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "accounts",
     "whatsapp",
     "mail",
+    "social",
 ]
 
 MIDDLEWARE = [
@@ -110,6 +111,16 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 # No project-level static/ dir — every asset now lives in its owning app's
 # static/<app>/ directory, found via the AppDirectoriesFinder default.
+
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+# WhatsApp outbound attachment uploads (whatsapp.ui_views). The Baileys worker
+# fetches these by URL, so in production MEDIA_URL must be reachable from it.
+
+# Mail attachments cross the Django<->worker boundary as base64 inside the
+# JSON body of a single request (see mail/ui_views.py::_attachments); raise
+# the default 2.5MB cap so that doesn't 400 in middleware before the view runs.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

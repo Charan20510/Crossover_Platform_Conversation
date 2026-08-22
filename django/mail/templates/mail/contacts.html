@@ -1,0 +1,31 @@
+{% extends "mail/base_mail.html" %}
+{% block title %}Contacts{% endblock %}
+
+{% block rc_body %}
+<section class="rc-wide">
+  <div class="rc-col-head"><span>Contacts</span></div>
+
+  <form class="rc-search" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search contacts…" autocomplete="off">
+  </form>
+
+  <p class="rc-muted rc-note">
+    Derived from every sender you have synced — read-only, by design.
+    Click an address to start a message.
+  </p>
+
+  <ul class="rc-rows rc-contacts">
+    {% for c in contacts %}
+    <li class="rc-row" data-action="compose-to" data-to="{{ c.email }}">
+      <span class="rc-avatar-sm">{{ c.name|slice:":1"|upper }}</span>
+      <span class="rc-contact-name">{{ c.name }}</span>
+      <span class="rc-contact-mail">{{ c.email }}</span>
+      <span class="rc-contact-count">{{ c.messages }} message{{ c.messages|pluralize }}</span>
+      <span class="rc-row-date">{{ c.last|date:"Y-m-d" }}</span>
+    </li>
+    {% empty %}
+    <li class="rc-loading">No contacts yet — sync a folder first.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

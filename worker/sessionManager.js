@@ -32,6 +32,8 @@ const { v4: uuidv4 } = require('uuid');
 
 // ---- Config ----
 const DJANGO_WEBHOOK_URL = process.env.DJANGO_WEBHOOK_URL || 'http://localhost:8000/webhook/incoming';
+const HISTORY_DAYS = Number(process.env.HISTORY_DAYS) || 7;
+const HISTORY_BATCH_SIZE = 200;
 
 // ---- Session store ----
 // Map<deviceId, { sock, phoneNumber, deviceId }>
@@ -110,7 +112,7 @@ async function startSession(deviceId, phoneNumber) {
     browser: Browsers.ubuntu('Chrome'),
     logger: logger.child({ class: 'wa', deviceId }),
     generateHighQualityLinkPreview: true,
-    syncFullHistory: false,
+    syncFullHistory: true,
     markOnlineOnConnect: false,
   });
 
@@ -188,52 +190,82 @@ async function startSession(deviceId, phoneNumber) {
   // ---- Event: save credentials (persist session) ----
   sock.ev.on('creds.update', saveCreds);
 
-  // ---- Event: incoming messages ----
+  // ---- Event: incoming + outbound (phone-sent) messages ----
+  // 'notify' = live message; 'append' = catch-up batch WhatsApp sends after a
+  // reconnect gap. Both are handled here; fromMe messages are now forwarded
+  // (with direction:'out') instead of being dropped, so messages sent from the
+  // linked phone show up in the gateway too.
   sock.ev.on('messages.upsert', async (event) => {
-    if (event.type !== 'notify') return;
+    if (event.type !== 'notify' && event.type !== 'append') return;
 
     for (const msg of event.messages) {
-      // Skip own messages
-      if (msg.key.fromMe) continue;
+      if (!msg.message || !msg.key || !msg.key.remoteJid || msg.key.remoteJid.endsWith('@g.us')) continue;
 
-      const sender = msg.key.remoteJid || '';
-      const messageText = extractMessageText(msg.message);
-      const pushName = msg.pushName || '';
-      const timestamp = msg.messageTimestamp || Date.now();
-      const inboxId = msg.key.id || '';
-
-      // Extract location if present
-      let location = null;
-      if (msg.message && msg.message.locationMessage) {
-        const lat = msg.message.locationMessage.degreesLatitude;
-        const lng = msg.message.locationMessage.degreesLongitude;
-        location = lat + ',' + lng;
-      }
-
-      // Extract attachment info if present
-      let attachmentUrl = null;
-      if (msg.message && (msg.message.imageMessage || msg.message.videoMessage ||
-          msg.message.audioMessage || msg.message.documentMessage)) {
-        // In production: download media from WhatsApp, store to S3/MinIO
-        attachmentUrl = 'media_pending_download';
-      }
-
-      logger.info({ deviceId, sender, preview: (messageText || '').slice(0, 40) }, 'Incoming message');
+      const mapped = mapWaMessage(msg);
+      logger.info({ deviceId, jid: mapped.jid, direction: mapped.direction, preview: mapped.message.slice(0, 40) }, 'Message event');
 
       // Forward to Django webhook
       await notifyDjango(deviceId, {
         event: 'incoming_message',
         deviceId,
-        sender,
-        message: messageText,
-        name: pushName,
-        location,
-        url: attachmentUrl,
-        inboxid: inboxId,
-        timestamp: typeof timestamp === 'number' ? timestamp : Date.now(),
+        sender: mapped.jid,
+        direction: mapped.direction,
+        message: mapped.message,
+        name: mapped.name,
+        location: mapped.location,
+        url: mapped.url,
+        inboxid: mapped.id,
+        timestamp: mapped.timestamp,
       });
     }
   });
+
+  // ---- Event: history sync (backfill on link / on-demand fetch) ----
+  // Baileys pushes chat history through this event both right after linking
+  // (syncFullHistory:true above) and in response to fetchMessageHistory() —
+  // see syncHistory() below. Only 1:1 chats within HISTORY_DAYS are forwarded;
+  // groups are out of scope (Message/IncomingMessage are keyed by bare phone
+  // digits, which groups don't have).
+  sock.ev.on('messaging-history.set', async ({ messages }) => {
+    if (!messages || !messages.length) return;
+
+    const cutoff = Math.floor(Date.now() / 1000) - HISTORY_DAYS * 86400;
+    const mapped = messages
+      .filter((m) => m.message && m.key && m.key.remoteJid && !m.key.remoteJid.endsWith('@g.us'))
+      .map(mapWaMessage)
+      .filter((m) => m.timestamp >= cutoff);
+
+    if (!mapped.length) return;
+    logger.info({ deviceId, count: mapped.length }, 'History sync batch received');
+
+    for (let i = 0; i < mapped.length; i += HISTORY_BATCH_SIZE) {
+      await notifyDjango(deviceId, {
+        event: 'history_sync',
+        deviceId,
+        messages: mapped.slice(i, i + HISTORY_BATCH_SIZE),
+      });
+    }
+  });
+
+  // ---- Event: contact sync (address-book names from the linked phone) ----
+  // Baileys pushes the phone's saved contact names via these two events —
+  // 'set' on initial link/history sync, 'upsert' for incremental updates.
+  // Forwarded so Django can show a saved name instead of a bare number.
+  const syncContacts = async (contacts) => {
+    const mapped = (contacts || [])
+      .map((c) => ({ jid: c.id || c.jid || '', name: c.name || c.notify || '' }))
+      .filter((c) => c.jid && c.name);
+    if (!mapped.length) return;
+    for (let i = 0; i < mapped.length; i += HISTORY_BATCH_SIZE) {
+      await notifyDjango(deviceId, {
+        event: 'contacts_sync',
+        deviceId,
+        contacts: mapped.slice(i, i + HISTORY_BATCH_SIZE),
+      });
+    }
+  };
+  sock.ev.on('contacts.upsert', syncContacts);
+  sock.ev.on('contacts.set', ({ contacts }) => syncContacts(contacts));
 
   // ---- Event: message status updates (sent/delivered/read) ----
   sock.ev.on('messages.update', async (updates) => {
@@ -278,15 +310,91 @@ async function startSession(deviceId, phoneNumber) {
 }
 
 /**
- * Extract text from a WhatsApp message object.
+ * Normalize a Baileys messageTimestamp (number | Long | string) to epoch seconds.
+ */
+function toSeconds(ts) {
+  if (ts && typeof ts === 'object' && typeof ts.toNumber === 'function') ts = ts.toNumber();
+  ts = Number(ts);
+  return Number.isFinite(ts) && ts > 0 ? ts : Math.floor(Date.now() / 1000);
+}
+
+/**
+ * Map a raw Baileys message (from messages.upsert or messaging-history.set)
+ * to the flat payload shape sent to Django. Shared so live and history
+ * ingestion can't drift apart.
+ */
+function mapWaMessage(msg) {
+  let attachmentUrl = null;
+  if (msg.message && (msg.message.imageMessage || msg.message.videoMessage ||
+      msg.message.audioMessage || msg.message.documentMessage)) {
+    // In production: download media from WhatsApp, store to S3/MinIO
+    attachmentUrl = 'media_pending_download';
+  }
+
+  let location = null;
+  if (msg.message && msg.message.locationMessage) {
+    const lat = msg.message.locationMessage.degreesLatitude;
+    const lng = msg.message.locationMessage.degreesLongitude;
+    location = lat + ',' + lng;
+  }
+
+  return {
+    jid: msg.key.remoteJid || '',
+    direction: msg.key.fromMe ? 'out' : 'in',
+    id: msg.key.id || '',
+    message: extractMessageText(msg.message) || '',
+    name: msg.pushName || '',
+    location,
+    url: attachmentUrl,
+    timestamp: toSeconds(msg.messageTimestamp),
+  };
+}
+
+// Envelope types that wrap the real message one level deeper under `.message` —
+// disappearing messages, view-once media, and captioned-document forwards.
+const ENVELOPE_KEYS = [
+  'ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2',
+  'viewOnceMessageV2Extension', 'documentWithCaptionMessage',
+];
+
+/**
+ * Extract text from a WhatsApp message object. Recurses through envelope
+ * wrappers (disappearing/view-once/etc.) to find the real content; falls
+ * back to a placeholder for content types with no text (stickers, polls,
+ * reactions, ...) so a bubble never renders with just a blank body.
  */
 function extractMessageText(message) {
   if (!message) return '';
+
+  for (const key of ENVELOPE_KEYS) {
+    if (message[key] && message[key].message) return extractMessageText(message[key].message);
+  }
+
   if (message.conversation) return message.conversation;
   if (message.extendedTextMessage && message.extendedTextMessage.text) return message.extendedTextMessage.text;
   if (message.imageMessage && message.imageMessage.caption) return message.imageMessage.caption;
   if (message.videoMessage && message.videoMessage.caption) return message.videoMessage.caption;
-  return '';
+  if (message.documentMessage && message.documentMessage.caption) return message.documentMessage.caption;
+  if (message.buttonsResponseMessage && message.buttonsResponseMessage.selectedButtonId) {
+    return message.buttonsResponseMessage.selectedButtonId;
+  }
+  if (message.listResponseMessage) {
+    const r = message.listResponseMessage;
+    if (r.singleSelectReply && r.singleSelectReply.selectedRowId) return r.singleSelectReply.selectedRowId;
+    if (r.title) return r.title;
+  }
+  if (message.templateButtonReplyMessage && message.templateButtonReplyMessage.selectedDisplayText) {
+    return message.templateButtonReplyMessage.selectedDisplayText;
+  }
+
+  // Internal/protocol-only payloads (key distribution, revokes, app-state
+  // sync) carry no user-visible content — stay silent, same as before.
+  const NON_CONTENT_KEYS = new Set(['protocolMessage', 'senderKeyDistributionMessage', 'messageContextInfo']);
+  const knownType = Object.keys(message).find((k) => !NON_CONTENT_KEYS.has(k));
+
+  // Something arrived (sticker, poll, reaction, contact card, ...) but has no
+  // extractable text — show a placeholder rather than a silently empty bubble.
+  return knownType ? `[Unsupported message: ${knownType}]` : '';
 }
 
 /**
@@ -489,6 +597,33 @@ async function sendTyping(deviceId, jid, duration) {
 }
 
 /**
+ * Ask WhatsApp to push more history for a set of chats, anchored on the
+ * oldest message we already have for each. Results arrive asynchronously
+ * through the messaging-history.set handler above, not as a return value.
+ * @param {string} deviceId
+ * @param {Array<{jid:string, id:string, fromMe:boolean, timestamp:number}>} anchors
+ *   `timestamp` is epoch seconds of the anchor message.
+ */
+async function syncHistory(deviceId, anchors) {
+  const session = sessions.get(deviceId);
+  if (!session || !session.sock || !session.sock.user) {
+    throw new Error('Device not connected or still authenticating — wait a moment and retry');
+  }
+  const sock = session.sock;
+
+  for (const a of Array.isArray(anchors) ? anchors : []) {
+    if (!a || !a.jid || !a.id) continue;
+    const key = { remoteJid: a.jid, id: a.id, fromMe: !!a.fromMe };
+    const oldestMsgTimestampMs = (a.timestamp || Math.floor(Date.now() / 1000)) * 1000;
+    try {
+      await sock.fetchMessageHistory(50, key, oldestMsgTimestampMs);
+    } catch (e) {
+      logger.warn({ deviceId, jid: a.jid, err: e.message }, 'fetchMessageHistory failed');
+    }
+  }
+}
+
+/**
  * Notify Django of an event (incoming message, status, device status).
  */
 async function notifyDjango(deviceId, payload) {
@@ -537,7 +672,9 @@ module.exports = {
   getPendingQR,
   requestPairingCode,
   sendTyping,
+  syncHistory,
   getActiveSessions,
   sessions,
   retryQueue,
+  extractMessageText,
 };

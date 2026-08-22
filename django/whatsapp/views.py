@@ -6,20 +6,21 @@ Moved from api/views.py; URL paths are unchanged (see whatsapp/api_urls.py).
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
+from django.utils import timezone as dj_timezone
 
 logger = logging.getLogger(__name__)
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
 
-from .models import Device, Message, IncomingMessage
+from .models import Device, Message, IncomingMessage, Contact
 from .auth import get_device_from_token
 from accounts.auth import get_account_from_token
 from core.utils import (
-    normalize_phone, to_jid, apply_variables, parse_delay, parse_targets,
+    normalize_phone, contact_key, to_jid, apply_variables, parse_delay, parse_targets,
     call_worker, generate_token,
 )
 
@@ -188,6 +189,8 @@ def send_message(request):
             body=msg_body,
             status="pending" if int(schedule) > 0 else "process",
             scheduled_at=datetime.fromtimestamp(int(schedule)) if int(schedule) > 0 else None,
+            attachment_url=url,
+            filename=body.get("filename", ""),
         )
         message_ids.append(str(msg.id))
         target_numbers.append(normalized)
@@ -457,25 +460,37 @@ def webhook_receiver(request):
         return JsonResponse({"status": False, "reason": "device not found"})
 
     if event_type == "incoming_message":
-        # Store inbound message
-        IncomingMessage.objects.create(
-            device=device,
-            sender=body.get("sender", ""),
-            message=body.get("message", ""),
-            name=body.get("name", ""),
-            location=body.get("location"),
-            attachment_url=body.get("url"),
-            inbox_id=body.get("inboxid"),
-            timestamp=datetime.fromtimestamp(body.get("timestamp", 0)) if body.get("timestamp") else None,
-        )
+        # Live message from the worker (either inbound, or fromMe from the
+        # linked phone — see `direction`). Routes to IncomingMessage/Message
+        # via the same helper history_sync uses below.
+        _store_wa_message(device, body)
 
         # Forward to user's webhook if configured
         if device.webhook_url:
             forward_webhook(device.webhook_url, body)
 
-        # Check auto-reply rules
-        if device.autoread:
+        # Check auto-reply rules (inbound only)
+        if device.autoread and body.get("direction", "in") != "out":
             _check_auto_reply(device, body)
+
+    elif event_type == "history_sync":
+        # Batched backfill from messaging-history.set. Each item can't be
+        # deduped without a WhatsApp message id, so those are skipped.
+        for item in body.get("messages", []):
+            if item.get("id") or item.get("inboxid"):
+                _store_wa_message(device, item)
+
+    elif event_type == "contacts_sync":
+        # Address-book names synced from the linked phone — lets the Chats UI
+        # show a saved name instead of a bare number.
+        for c in body.get("contacts", []):
+            phone = contact_key(c.get("jid", ""))
+            name = c.get("name", "").strip()
+            if not phone or not name:
+                continue
+            Contact.objects.update_or_create(
+                device=device, phone=phone, defaults={"name": name}
+            )
 
     elif event_type == "message_whatsapp_id":
         msg_id = body.get("id", "")
@@ -523,6 +538,55 @@ def webhook_receiver(request):
             forward_webhook(device.webhook_url, body)
 
     return JsonResponse({"status": True})
+
+
+def _store_wa_message(device, item):
+    """Persist one worker message dict into IncomingMessage or Message.
+
+    Accepts both the live 'incoming_message' shape (sender/inboxid) and the
+    batched 'history_sync' item shape (jid/id) from the worker's shared
+    mapWaMessage(). Deduped on the WhatsApp message id where one is present,
+    so replaying a sync (or a live event racing a backfill) is a no-op.
+    """
+    jid = item.get("sender") or item.get("jid") or ""
+    contact = contact_key(jid)
+    if not contact:
+        return
+
+    wa_id = item.get("inboxid") or item.get("id") or ""
+    ts = item.get("timestamp")
+    when = datetime.fromtimestamp(ts, tz=dt_timezone.utc) if ts else dj_timezone.now()
+
+    if item.get("direction", "in") == "out":
+        defaults = {
+            "target": contact,
+            "body": item.get("message", ""),
+            "status": "sent",
+            "state": "sent",
+            "attachment_url": item.get("url") or None,
+            "sent_at": when,
+            "created_at": when,
+        }
+        if wa_id:
+            Message.objects.get_or_create(device=device, whatsapp_id=wa_id, defaults=defaults)
+        else:
+            Message.objects.create(device=device, whatsapp_id=None, **defaults)
+        return
+
+    defaults = {
+        "sender": jid,
+        "contact": contact,
+        "message": item.get("message", ""),
+        "name": item.get("name", ""),
+        "location": item.get("location"),
+        "attachment_url": item.get("url"),
+        "timestamp": when,
+        "received_at": when,
+    }
+    if wa_id:
+        IncomingMessage.objects.get_or_create(device=device, inbox_id=wa_id, defaults=defaults)
+    else:
+        IncomingMessage.objects.create(device=device, inbox_id=None, **defaults)
 
 
 def forward_webhook(url, payload):

@@ -35,6 +35,16 @@ const Toast = (() => {
   return { show, ok: (m) => show(m, 'ok'), err: (m) => show(m, 'err', 4500) };
 })();
 
+// ── sidebar toggle (collapsed by default on flush pages, e.g. Chats) ──
+const appShell = document.getElementById('app-shell');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+if (appShell) {
+  if (document.querySelector('.main-flush')) appShell.classList.add('sidebar-collapsed');
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => appShell.classList.toggle('sidebar-collapsed'));
+  }
+}
+
 // ── fetch wrapper (attaches device/account/mail token) ────────
 async function apiPost(url, body, token) {
   const res = await fetch(url, {
@@ -46,6 +56,65 @@ async function apiPost(url, body, token) {
     body: JSON.stringify(body),
   });
   return res.json();
+}
+
+// ── contact type-ahead (used by WhatsApp Chats search + Mail compose "To") ──
+// Wires `input` to a debounced /app/contacts/search/?q= lookup, rendering a
+// suggestion menu under it. `onPick(contact)` fires on click/Enter.
+function contactSearch(input, onPick) {
+  if (!input) return;
+  const menu = document.createElement('div');
+  menu.className = 'ac-menu hidden';
+  input.parentElement.style.position = input.parentElement.style.position || 'relative';
+  input.parentElement.appendChild(menu);
+
+  let timer = null;
+  let items = [];
+  let active = -1;
+
+  function hide() { menu.classList.add('hidden'); menu.innerHTML = ''; items = []; active = -1; }
+
+  function render() {
+    menu.innerHTML = items.map((c, i) => `
+      <button type="button" class="ac-item${i === active ? ' active' : ''}" data-i="${i}">
+        <span class="ac-name">${c.name}</span>
+        <span class="ac-meta">${c.whatsapp || c.email || c.company || ''}</span>
+      </button>`).join('');
+    menu.classList.toggle('hidden', items.length === 0);
+  }
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ac-item');
+    if (!btn) return;
+    onPick(items[parseInt(btn.dataset.i, 10)]);
+    hide();
+  });
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { hide(); return; }
+    timer = setTimeout(async () => {
+      try {
+        const data = await fetch(`/app/contacts/search/?q=${encodeURIComponent(q)}`).then(r => r.json());
+        items = data.results || [];
+        active = -1;
+        render();
+      } catch (_) { hide(); }
+    }, 200);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (menu.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, items.length - 1); render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); onPick(items[active]); hide(); }
+    else if (e.key === 'Escape') { hide(); }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target !== input && !menu.contains(e.target)) hide();
+  });
 }
 
 // ── copy to clipboard ────────────────────────────────────────

@@ -1,0 +1,150 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Contacts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Contacts</div>
+    <div class="page-subtitle">One profile per client, every channel in one place</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <form method="get">
+    <input class="form-control" type="search" name="q" value="{{ q }}"
+           placeholder="Search contacts…" autocomplete="off">
+  </form>
+</div>
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+
+  <!-- create / edit form -->
+  <div class="card" style="flex:1;min-width:280px;" id="contact-form-card">
+    <div class="card-title" id="contact-form-title">{% if editing %}Edit Contact{% else %}New Contact{% endif %}</div>
+    <form method="post" id="contact-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="contact-action" value="{% if editing %}edit{% else %}create{% endif %}">
+      <input type="hidden" name="contact_id" id="contact-id-field" value="{{ editing.id|default:'' }}">
+
+      <div class="form-group">
+        <label class="form-label" for="c-name">Name</label>
+        <input class="form-control" type="text" id="c-name" name="name" required maxlength="255" placeholder="Jane Doe" value="{{ editing.name|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-company">Company</label>
+        <input class="form-control" type="text" id="c-company" name="company" maxlength="255" placeholder="Acme Pvt Ltd" value="{{ editing.company|default:'' }}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="c-whatsapp">WhatsApp / mobile</label>
+        <div class="phone-input" data-phone data-default-cc="{{ default_cc }}">
+          <input class="form-control cc-picker" list="dial-codes" aria-label="Country code" placeholder="+91">
+          <input class="form-control" type="tel" id="c-whatsapp" name="whatsapp" placeholder="98765 43210" value="{{ editing.whatsapp|default:'' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-mobile">Other mobile</label>
+        <div class="phone-input" data-phone data-default-cc="{{ default_cc }}">
+          <input class="form-control cc-picker" list="dial-codes" aria-label="Country code" placeholder="+91">
+          <input class="form-control" type="tel" id="c-mobile" name="mobile" placeholder="98765 43210" value="{{ editing.mobile|default:'' }}">
+        </div>
+      </div>
+      <datalist id="dial-codes"></datalist>
+      <div class="form-group">
+        <label class="form-label" for="c-email">Email</label>
+        <input class="form-control" type="email" id="c-email" name="email" placeholder="jane@acme.com" value="{{ editing.email|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-instagram">Instagram</label>
+        <input class="form-control" type="text" id="c-instagram" name="instagram" placeholder="@janedoe" value="{{ editing.instagram|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-facebook">Facebook</label>
+        <input class="form-control" type="text" id="c-facebook" name="facebook" placeholder="facebook.com/janedoe" value="{{ editing.facebook|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-x">X</label>
+        <input class="form-control" type="text" id="c-x" name="x" placeholder="@janedoe" value="{{ editing.x|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-linkedin">LinkedIn</label>
+        <input class="form-control" type="text" id="c-linkedin" name="linkedin" placeholder="linkedin.com/in/janedoe" value="{{ editing.linkedin|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-slack">Slack</label>
+        <input class="form-control" type="text" id="c-slack" name="slack" placeholder="@jane" value="{{ editing.slack|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-gbp">Google Business</label>
+        <input class="form-control" type="text" id="c-gbp" name="gbp" placeholder="Business name or profile URL" value="{{ editing.gbp|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-telegram">Telegram</label>
+        <input class="form-control" type="text" id="c-telegram" name="telegram" placeholder="@janedoe" value="{{ editing.telegram|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="c-notes">Notes</label>
+        <textarea class="form-control" id="c-notes" name="notes" rows="3" placeholder="Anything worth remembering…">{{ editing.notes|default:'' }}</textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button type="submit" class="btn btn-primary">Save Contact</button>
+        {% if editing %}<a href="{% url 'core:contacts' %}" class="btn btn-ghost">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- contact list -->
+  <div class="card" style="flex:2;min-width:320px;">
+    <div class="card-title">All Contacts ({{ contacts|length }})</div>
+    {% if contacts %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>WhatsApp</th>
+            <th>Email</th>
+            <th>Company</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contacts %}
+          <tr>
+            <td style="font-weight:600;">{{ c.name }}</td>
+            <td>{{ c.whatsapp|default:"—" }}</td>
+            <td>{{ c.email|default:"—" }}</td>
+            <td>{{ c.company|default:"—" }}</td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <a class="btn btn-sm btn-outline" href="?edit={{ c.id }}">Edit</a>
+                <form method="post" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="contact_id" value="{{ c.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger"
+                    onclick="return confirm('Delete this contact?')">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">👤</div>
+      <p>No contacts yet. Add one on the left.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/phoneinput.js' %}?v=1"></script>
+{% endblock %}

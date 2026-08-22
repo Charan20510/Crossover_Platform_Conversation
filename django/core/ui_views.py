@@ -6,13 +6,21 @@ dependency direction one-way: whatsapp/mail never import each other or core's
 UI code, only core imports them).
 """
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 from accounts.utils import get_account
 from whatsapp.models import Message, IncomingMessage
 from mail.models import Email, IncomingEmail
+from .models import Contact
+
+CONTACT_FIELDS = [
+    "name", "company", "notes", "whatsapp", "mobile", "email",
+    "instagram", "facebook", "x", "linkedin", "slack", "gbp", "telegram",
+]
 
 
 @login_required
@@ -145,3 +153,66 @@ def notifications_feed(request):
     latest = sorted(latest + mail_latest, key=lambda i: i["received_at"] or "", reverse=True)[:5]
 
     return JsonResponse({"count": count, "latest": latest})
+
+
+@login_required
+def contacts(request):
+    """Unified client profiles — one row per person, every channel ID."""
+    account = get_account(request)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "delete":
+            Contact.objects.filter(id=request.POST.get("contact_id"), account=account).delete()
+        elif action in ("create", "edit"):
+            name = request.POST.get("name", "").strip()
+            if name:
+                values = {f: request.POST.get(f, "").strip() for f in CONTACT_FIELDS if f != "name"}
+                contact_id = request.POST.get("contact_id")
+                if action == "edit" and contact_id:
+                    contact = Contact.objects.filter(id=contact_id, account=account).first()
+                    if contact:
+                        contact.name = name
+                        for field, value in values.items():
+                            setattr(contact, field, value)
+                        contact.save()
+                else:
+                    Contact.objects.create(account=account, name=name, **values)
+        return redirect(request.get_full_path())
+
+    q = request.GET.get("q", "").strip()
+    qs = Contact.objects.filter(account=account)
+    if q:
+        qs = qs.filter(
+            Q(name__icontains=q) | Q(company__icontains=q)
+            | Q(email__icontains=q) | Q(whatsapp__icontains=q)
+        )
+
+    editing = None
+    edit_id = request.GET.get("edit")
+    if edit_id:
+        editing = qs.filter(id=edit_id).first()
+
+    return render(request, "core/contacts.html", {
+        "account": account,
+        "contacts": qs,
+        "q": q,
+        "editing": editing,
+        "default_cc": settings.DEFAULT_COUNTRY_CODE,
+    })
+
+
+@login_required
+def contacts_search(request):
+    """Type-ahead backend for the WhatsApp Chats and Mail compose search bars."""
+    account = get_account(request)
+    q = request.GET.get("q", "").strip()
+    results = []
+    if len(q) >= 2:
+        results = list(
+            Contact.objects.filter(account=account, name__icontains=q)[:8]
+            .values("id", "name", "company", "whatsapp", "mobile", "email", "telegram")
+        )
+        for r in results:
+            r["id"] = str(r["id"])
+    return JsonResponse({"results": results})

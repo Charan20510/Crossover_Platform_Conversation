@@ -3,6 +3,7 @@ Mail models — MailAccount, Email, IncomingEmail. Moved from api/models.py;
 table names (api_mailaccount, ...) are unchanged so no DDL runs.
 """
 
+import re
 import uuid
 import secrets
 from django.db import models
@@ -11,6 +12,15 @@ from django.utils import timezone
 from accounts.models import Account
 from core.choices import CONNECTION_STATUS_CHOICES, SEND_STATUS_CHOICES
 from core.utils import decrypt_secret, encrypt_secret
+
+
+# Leading "Re:", "Fwd:", "AW:", "SV:", "Re[2]:" … possibly stacked.
+_REPLY_PREFIX_RE = re.compile(r"^(?:\s*(?:re|fw|fwd|aw|sv|antw)\s*(?:\[\d+\])?\s*:\s*)+", re.I)
+
+
+def thread_key_for(subject):
+    """Normalized conversation key: subject minus reply/forward prefixes, lowercased."""
+    return _REPLY_PREFIX_RE.sub("", subject or "").strip().lower()[:255]
 
 
 class MailAccount(models.Model):
@@ -35,9 +45,17 @@ class MailAccount(models.Model):
     emails_sent = models.IntegerField(default=0)
     last_sync_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
+    # IMAP special-use -> path cache, e.g. {"sent": "[Gmail]/Sent Mail", ...};
+    # filled by mail:sync_folders so no Folder model is needed.
+    folder_map = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "api_mailaccount"
+
+    def folder_path(self, kind, fallback=None):
+        """Resolve a special-use folder ("sent"/"drafts"/"trash"/"junk"/"archive")
+        to its real IMAP path, falling back to the capitalized name."""
+        return (self.folder_map or {}).get(kind) or fallback or kind.capitalize()
 
     @property
     def password(self):
@@ -77,7 +95,14 @@ class Email(models.Model):
 
 
 class IncomingEmail(models.Model):
-    """Inbound emails fetched via IMAP sync."""
+    """Every stored IMAP message, in every folder.
+
+    Despite the name this is no longer inbound-only: the Roundcube-style client
+    syncs *all* folders (Inbox, Drafts, Sent, Junk, Trash) into this table,
+    keyed by (mail_account, folder, uid) — the same message legitimately exists
+    in both Inbox and Sent. `Email` remains the outbound send log.
+    Renaming the model would churn the whole app for no gain.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     mail_account = models.ForeignKey(MailAccount, on_delete=models.CASCADE, related_name="incoming_emails")
@@ -93,9 +118,27 @@ class IncomingEmail(models.Model):
     has_attachments = models.BooleanField(default=False)
     received_at = models.DateTimeField(default=timezone.now)
 
+    to_addrs = models.CharField(max_length=500, blank=True)
+    cc = models.CharField(max_length=500, blank=True)
+    is_starred = models.BooleanField(default=False)
+    is_answered = models.BooleanField(default=False)
+    is_draft = models.BooleanField(default=False)
+    size = models.IntegerField(default=0)
+    in_reply_to = models.CharField(max_length=255, blank=True)
+    references = models.TextField(blank=True)
+    thread_key = models.CharField(max_length=255, blank=True, db_index=True)
+    # metadata only (filename/size/contentType) — bytes are never stored.
+    attachments = models.JSONField(default=list, blank=True)
+
     class Meta:
         db_table = "api_incomingemail"
-        unique_together = ("mail_account", "message_id")
+        unique_together = ("mail_account", "folder", "uid")
+
+    def save(self, *args, **kwargs):
+        self.thread_key = thread_key_for(self.subject)
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = list(kwargs["update_fields"]) + ["thread_key"]
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.sender}: {self.subject[:30]}..."

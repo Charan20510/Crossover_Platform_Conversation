@@ -158,21 +158,6 @@ if (sendForm) {
   });
 }
 
-// ── delete message ────────────────────────────────────────────
-document.querySelectorAll('[data-action=delete-msg]').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm('Cancel this message?')) return;
-    const { token, msgId } = btn.dataset;
-    const data = await apiPost('/delete-message', { id: msgId }, token);
-    if (data.status) {
-      Toast.ok('Message cancelled.');
-      btn.closest('tr')?.remove();
-    } else {
-      Toast.err(data.reason || 'Failed.');
-    }
-  });
-});
-
 // ── delete device ─────────────────────────────────────────────
 document.querySelectorAll('[data-action=delete-device]').forEach(btn => {
   btn.addEventListener('click', async () => {
@@ -190,21 +175,224 @@ document.querySelectorAll('[data-action=delete-device]').forEach(btn => {
   });
 });
 
-// ── reschedule message ────────────────────────────────────────
-document.querySelectorAll('[data-action=reschedule-msg]').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const ts = prompt('New schedule (Unix timestamp in seconds):');
-    if (!ts || isNaN(ts)) return;
-    const { token, msgId } = btn.dataset;
-    const data = await apiPost('/reschedule', { id: msgId, schedule: ts }, token);
-    if (data.status) { Toast.ok('Rescheduled.'); }
-    else { Toast.err(data.reason || 'Failed.'); }
-  });
-});
-
 // ── close modal on backdrop click ────────────────────────────
 if (qrModal) {
   qrModal.addEventListener('click', (e) => {
     if (e.target === qrModal) closeQrModal();
   });
+}
+
+// ── Chats: composer + 5s poll ─────────────────────────────────
+const chatShell = document.getElementById('chat-shell');
+if (chatShell) {
+  const thread = document.getElementById('chat-thread');
+  const listRows = document.getElementById('chat-list-rows');
+  const contact = chatShell.dataset.contact;
+  const token = chatShell.dataset.token;
+  const deviceId = chatShell.dataset.device;
+  const deviceFilter = chatShell.dataset.deviceFilter;
+  const showAll = chatShell.dataset.showAll === '1';
+  const canAttach = chatShell.dataset.canAttach === '1';
+  const feedUrl = chatShell.dataset.feed;
+  const uploadUrl = chatShell.dataset.upload;
+  const syncUrl = chatShell.dataset.sync;
+  const csrfToken = () => {
+    const m = document.cookie.match(/(^|;\s*)csrftoken=([^;]*)/);
+    return m ? decodeURIComponent(m[2]) : '';
+  };
+  let lastAt = null;
+  let pendingUpload = null;  // { url, filename } staged by the attach button
+
+  const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  const fmt = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+  const scrollDown = () => { if (thread) thread.scrollTop = thread.scrollHeight; };
+  const tick = (status) => status === 'delivered' || status === 'read' ? '✓✓' : status === 'sent' ? '✓' : '';
+
+  function addBubble(m) {
+    if (!thread || thread.querySelector(`[data-id="${m.id}"]`)) return;
+    const el = document.createElement('div');
+    el.className = `bubble-${m.direction}`;
+    el.dataset.id = m.id;
+    const file = m.attachment_url
+      ? `<a class="bubble-file" href="${m.attachment_url}" target="_blank" rel="noopener">` +
+        `<span class="bubble-file-icon">📎</span><span class="bubble-file-name">${esc(m.filename || 'Attachment')}</span></a>`
+      : '';
+    const text = m.body ? `<div class="bubble-text">${esc(m.body)}</div>` : '';
+    const meta = m.direction === 'out'
+      ? `${m.at ? fmt(m.at) : ''} <span class="bubble-tick">${tick(m.status)}</span>`
+      : `${m.at ? fmt(m.at) : ''}`;
+    el.innerHTML = `${file}${text}<div class="bubble-meta">${meta}</div>`;
+    thread.appendChild(el);
+  }
+
+  // seed lastAt from the server-rendered thread
+  if (thread) {
+    const bubbles = thread.querySelectorAll('[data-at]');
+    if (bubbles.length) lastAt = bubbles[bubbles.length - 1].dataset.at;
+    scrollDown();
+  }
+
+  // attach button — uploads immediately, staged for the next send
+  const attachBtn = document.getElementById('chat-attach-btn');
+  const attachInput = document.getElementById('chat-attach-input');
+  if (canAttach && attachBtn && attachInput) {
+    attachBtn.addEventListener('click', () => attachInput.click());
+    attachInput.addEventListener('change', async () => {
+      const file = attachInput.files[0];
+      attachInput.value = '';
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('device', deviceId);
+      attachBtn.disabled = true;
+      attachBtn.textContent = '…';
+      try {
+        const res = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken() },
+          credentials: 'same-origin',
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.status) {
+          pendingUpload = { url: data.url, filename: data.filename };
+          Toast.ok(`Attached: ${data.filename}`);
+        } else {
+          Toast.err(data.reason || 'Upload failed.');
+        }
+      } catch (err) {
+        Toast.err('Upload failed.');
+      }
+      attachBtn.disabled = false;
+      attachBtn.textContent = '+';
+    });
+  }
+
+  // composer — reuses the token-authed /send endpoint, no new backend path
+  const composer = document.getElementById('chat-composer');
+  if (composer) {
+    composer.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = composer.querySelector('[name=message]');
+      const text = input.value.trim();
+      const upload = pendingUpload;
+      if (!text && !upload) return;
+      if (!token) { Toast.err('No connected device to send from.'); return; }
+
+      input.value = '';
+      pendingUpload = null;
+      addBubble({
+        id: 'tmp-' + Date.now(), direction: 'out', body: text, at: new Date().toISOString(),
+        status: 'sending', attachment_url: upload ? upload.url : '', filename: upload ? upload.filename : '',
+      });
+      scrollDown();
+
+      const body = { target: contact, message: text, preview: 'true' };
+      if (upload) { body.url = upload.url; body.filename = upload.filename; }
+      const data = await apiPost('/send', body, token);
+      if (!data.status) {
+        Toast.err(data.reason || 'Send failed.');
+        input.value = text;
+      }
+    });
+  }
+
+  // sync button — asks the worker to backfill history for the selected
+  // device; results land via the poll once the webhook processes them
+  const syncBtn = document.getElementById('chat-sync-btn');
+  if (syncBtn && syncUrl) {
+    syncBtn.addEventListener('click', async () => {
+      if (!deviceId) { Toast.err('No connected device to sync.'); return; }
+      syncBtn.disabled = true;
+      syncBtn.textContent = '…';
+      try {
+        const fd = new FormData();
+        fd.append('device', deviceId);
+        const res = await fetch(syncUrl, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken() },
+          credentials: 'same-origin',
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.status) {
+          Toast.ok(data.chats ? `Syncing history for ${data.chats} chat(s)…` : 'No history to sync.');
+        } else {
+          Toast.err(data.reason || 'Sync failed.');
+        }
+      } catch (err) {
+        Toast.err('Sync failed.');
+      }
+      syncBtn.disabled = false;
+      syncBtn.textContent = '⟳';
+    });
+  }
+
+  // client-side search — the full list is already in the DOM
+  const searchInput = document.getElementById('chat-search');
+  if (searchInput && listRows) {
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      listRows.querySelectorAll('.chat-row').forEach(row => {
+        const hay = (row.dataset.search || '').toLowerCase();
+        row.style.display = !q || hay.includes(q) ? '' : 'none';
+      });
+    });
+  }
+
+  // contact profile type-ahead — pick a profile to jump straight into that chat
+  if (searchInput) {
+    contactSearch(searchInput, (c) => {
+      if (c.whatsapp) location.href = `/app/whatsapp/chats/${c.whatsapp}/`;
+    });
+  }
+
+  // delegated: rows are re-rendered by the poll, so bind on the container
+  if (listRows) {
+    listRows.addEventListener('click', (e) => {
+      const row = e.target.closest('.chat-row');
+      if (row && row.href) { e.preventDefault(); location.href = row.href; }
+    });
+  }
+
+  setInterval(async () => {
+    const qs = new URLSearchParams();
+    if (contact) qs.set('contact', contact);
+    if (lastAt) qs.set('after', lastAt);
+    if (deviceFilter) qs.set('device', deviceFilter);
+    if (showAll) qs.set('all', '1');
+    let data;
+    try {
+      data = await (await fetch(`${feedUrl}?${qs}`)).json();
+    } catch (err) { return; }
+
+    (data.messages || []).forEach(m => {
+      // drop the optimistic bubble once the real row arrives
+      const tmp = thread && thread.querySelector('[data-id^="tmp-"]');
+      if (tmp && m.direction === 'out') tmp.remove();
+      addBubble(m);
+      if (m.at) lastAt = m.at;
+    });
+    if ((data.messages || []).length) scrollDown();
+
+    if (listRows && data.chats) {
+      const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+      listRows.innerHTML = data.chats.map(c => {
+        const label = c.name || c.contact;
+        const hidden = q && !label.toLowerCase().includes(q) ? ' style="display:none"' : '';
+        return `<a class="chat-row${c.contact === contact ? ' active' : ''}" href="${c.url}" data-contact="${c.contact}" data-search="${esc(label)}"${hidden}>
+          <div class="msg-avatar">${esc(label.slice(0, 1).toUpperCase())}</div>
+          <div class="chat-row-body">
+            <div class="chat-row-top">
+              <span class="chat-row-name">${esc(label)}</span>
+              <span class="chat-row-time">${c.last_at ? fmt(c.last_at) : ''}</span>
+            </div>
+            <div class="chat-row-preview">${c.last_direction === 'out' ? 'You: ' : ''}${esc(c.last_body || '')}</div>
+          </div></a>`;
+      }).join('');
+    }
+  }, 5000);
 }

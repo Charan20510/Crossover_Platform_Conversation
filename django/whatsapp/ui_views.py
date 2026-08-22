@@ -2,11 +2,136 @@
 WhatsApp browser UI views. Moved from api/ui_views.py.
 """
 
+import uuid
+from datetime import datetime
+
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
+from django.http import JsonResponse
 from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.utils import timezone as dj_timezone
+from django.views.decorators.http import require_POST
 
 from accounts.utils import get_account
-from .models import Message, IncomingMessage, MessageTemplate, AutoReply
+from core.utils import contact_key, to_jid, call_worker
+from .models import Message, IncomingMessage, MessageTemplate, AutoReply, Contact
+
+MAX_UPLOAD_BYTES = 16 * 1024 * 1024  # 16MB
+
+
+# ── chat selectors ────────────────────────────────────────────
+# A "chat" is every inbound + outbound message sharing one bare-digit contact.
+# Inbound lives in IncomingMessage (JID-keyed), outbound in Message (digit-keyed);
+# the merge happens in Python because there is no thread table.
+# By default only contacts we have SENT to are shown — Chats is "conversations
+# I started from this app", not every inbound stranger. started_only=False (the
+# "Show all conversations" toggle) lifts that filter.
+
+def chat_rows(account, device_id=None, limit=None, started_only=True):
+    """One row per unique contact, newest activity first.
+
+    ponytail: full-table scan per call — add a `Conversation` rollup table if an
+    account ever holds enough history for this to show up in page timings.
+    """
+    inbox = IncomingMessage.objects.filter(device__account=account)
+    sent = Message.objects.filter(device__account=account)
+    if device_id:
+        inbox = inbox.filter(device_id=device_id)
+        sent = sent.filter(device_id=device_id)
+
+    started = (
+        {contact_key(t) for t in sent.values_list("target", flat=True)}
+        if started_only else None
+    )
+
+    rows = {}
+
+    def touch(contact, when, body, direction, name="", device=None):
+        if not contact or (started is not None and contact not in started):
+            return
+        row = rows.setdefault(contact, {
+            "contact": contact, "name": "", "last_at": None,
+            "last_body": "", "last_direction": direction,
+            "inbound_count": 0, "device_id": None, "device_name": "",
+        })
+        if name and not row["name"]:
+            row["name"] = name
+        if device is not None and not row["device_id"]:
+            row["device_id"], row["device_name"] = device
+        if row["last_at"] is None or (when and when > row["last_at"]):
+            row["last_at"] = when
+            row["last_body"] = body
+            row["last_direction"] = direction
+
+    for m in inbox.order_by("-received_at").values(
+        "contact", "sender", "message", "name", "received_at", "device_id", "device__name"
+    ):
+        c = m["contact"] or contact_key(m["sender"])
+        touch(c, m["received_at"], m["message"], "in", m["name"],
+              (m["device_id"], m["device__name"]))
+        if c in rows:
+            rows[c]["inbound_count"] += 1
+
+    for m in sent.order_by("-created_at").values(
+        "target", "body", "created_at", "device_id", "device__name"
+    ):
+        touch(contact_key(m["target"]), m["created_at"], m["body"], "out",
+              device=(m["device_id"], m["device__name"]))
+
+    # Saved contact name (from the linked phone's address book) outranks the
+    # WhatsApp push name set on inbound messages.
+    saved_names = dict(
+        Contact.objects.filter(device__account=account, phone__in=rows.keys())
+        .exclude(name="").values_list("phone", "name")
+    )
+    for c, name in saved_names.items():
+        rows[c]["name"] = name
+
+    ordered = sorted(rows.values(), key=lambda r: r["last_at"], reverse=True)
+    return ordered[:limit] if limit else ordered
+
+
+def day_label(dt):
+    """'Today' / 'Yesterday' / 'DD Mon YYYY' for a date-separator pill."""
+    local = dj_timezone.localtime(dt).date() if dj_timezone.is_aware(dt) else dt.date()
+    today = dj_timezone.localdate()
+    delta = (today - local).days
+    if delta == 0:
+        return "Today"
+    if delta == 1:
+        return "Yesterday"
+    return local.strftime("%d %b %Y")
+
+
+def thread_messages(account, contact, after=None, device_id=None):
+    """Merged inbound + outbound message dicts for one contact, oldest first."""
+    contact = contact_key(contact)
+    inbox = IncomingMessage.objects.filter(device__account=account, contact=contact)
+    sent = Message.objects.filter(device__account=account, target=contact)
+    if device_id:
+        inbox = inbox.filter(device_id=device_id)
+        sent = sent.filter(device_id=device_id)
+    if after:
+        inbox = inbox.filter(received_at__gt=after)
+        sent = sent.filter(created_at__gt=after)
+
+    items = [
+        {"id": str(m["id"]), "direction": "in", "body": m["message"],
+         "at": m["received_at"], "status": "",
+         "attachment_url": m["attachment_url"] or "", "filename": ""}
+        for m in inbox.values("id", "message", "received_at", "attachment_url")
+    ] + [
+        {"id": str(m["id"]), "direction": "out", "body": m["body"],
+         "at": m["created_at"], "status": m["status"],
+         "attachment_url": m["attachment_url"] or "", "filename": m["filename"] or ""}
+        for m in sent.values("id", "body", "created_at", "status", "attachment_url", "filename")
+    ]
+    items.sort(key=lambda i: i["at"])
+    for i in items:
+        i["day"] = day_label(i["at"]) if i["at"] else ""
+    return items
 
 
 @login_required
@@ -61,47 +186,180 @@ def send_view(request):
 
 
 @login_required
-def messages_view(request):
+def chats_view(request, contact=None):
     account = get_account(request)
+    contact = contact_key(contact) if contact else ""
+
+    devices = list(account.devices.all())
     device_filter = request.GET.get("device", "")
-    status_filter = request.GET.get("status", "")
+    show_all = request.GET.get("all") == "1"
+    selected_device = next((d for d in devices if str(d.id) == device_filter), None) if device_filter else None
+    filter_id = selected_device.id if selected_device else None
 
-    qs = Message.objects.filter(device__account=account).order_by("-created_at")
-    if device_filter:
-        qs = qs.filter(device_id=device_filter)
-    if status_filter:
-        qs = qs.filter(status=status_filter)
+    chats = chat_rows(account, device_id=filter_id, started_only=not show_all)
 
-    return render(request, "whatsapp/messages.html", {
+    # Mark seen — reading here clears the bell badge, same as the Inbox.
+    request.session["inbox_seen_at"] = dj_timezone.now().isoformat()
+
+    connected = list(account.devices.filter(status="connect"))
+    active = next((c for c in chats if c["contact"] == contact), None)
+    if selected_device and selected_device.status == "connect":
+        device = selected_device
+    else:
+        device = next((d for d in connected if active and str(d.id) == str(active["device_id"])), None)
+        device = device or (connected[0] if connected else None)
+
+    return render(request, "whatsapp/chats.html", {
         "account": account,
-        "messages": qs[:200],
-        "devices": account.devices.all(),
+        "chats": chats,
+        "active": active,
+        "contact": contact,
+        "thread": thread_messages(account, contact, device_id=filter_id) if contact else [],
+        "send_token": device.device_token if device else "",
+        "send_device": device,
+        "can_attach": bool(device and device.has_attachment_access),
+        "devices": devices,
+        "selected_device": selected_device,
         "device_filter": device_filter,
-        "status_filter": status_filter,
+        "show_all": show_all,
     })
 
 
 @login_required
-def inbox_view(request):
-    from django.utils import timezone as dj_timezone
-
+def chats_feed(request):
+    """JSON poll: chat list + (optionally) new messages in the open thread."""
     account = get_account(request)
+    contact = request.GET.get("contact", "")
     device_filter = request.GET.get("device", "")
-    device_ids = list(account.devices.values_list("id", flat=True))
+    show_all = request.GET.get("all") == "1"
+    selected_device = account.devices.filter(id=device_filter).first() if device_filter else None
+    filter_id = selected_device.id if selected_device else None
+    after = None
+    if request.GET.get("after"):
+        try:
+            after = datetime.fromisoformat(request.GET["after"])
+        except ValueError:
+            after = None
 
-    qs = IncomingMessage.objects.filter(device_id__in=device_ids).order_by("-received_at")
-    if device_filter:
-        qs = qs.filter(device_id=device_filter)
+    def chat_url(row):
+        url = reverse("whatsapp:chat_detail", args=[row["contact"]])
+        params = []
+        if device_filter:
+            params.append(f"device={device_filter}")
+        if show_all:
+            params.append("all=1")
+        return f"{url}?{'&'.join(params)}" if params else url
 
-    # Mark seen
-    request.session["inbox_seen_at"] = dj_timezone.now().isoformat()
+    chats = [
+        {**r, "last_at": r["last_at"].isoformat() if r["last_at"] else None,
+         "device_id": str(r["device_id"]) if r["device_id"] else "",
+         "url": chat_url(r)}
+        for r in chat_rows(account, device_id=filter_id, started_only=not show_all)
+    ]
+    messages = []
+    if contact:
+        messages = [
+            {**m, "at": m["at"].isoformat() if m["at"] else None}
+            for m in thread_messages(account, contact, after=after, device_id=filter_id)
+        ]
+    return JsonResponse({"chats": chats, "messages": messages})
 
-    return render(request, "whatsapp/inbox.html", {
-        "account": account,
-        "messages": qs[:200],
-        "devices": account.devices.all(),
-        "device_filter": device_filter,
-    })
+
+@login_required
+@require_POST
+def chat_upload(request):
+    """Upload a composer attachment, return an absolute URL the worker can fetch.
+
+    Gated on has_attachment_access — the same rule /send already enforces for
+    a bare `url`, applied here so a low-package device can't even get a URL.
+    """
+    account = get_account(request)
+    device_id = request.POST.get("device")
+    device = account.devices.filter(id=device_id).first() if device_id else None
+    if not device:
+        return JsonResponse({"status": False, "reason": "device required"}, status=400)
+    if not device.has_attachment_access:
+        return JsonResponse({
+            "status": False,
+            "reason": "attachment requires super/advanced/ultra package",
+        }, status=403)
+
+    f = request.FILES.get("file")
+    if not f:
+        return JsonResponse({"status": False, "reason": "file required"}, status=400)
+    if f.size > MAX_UPLOAD_BYTES:
+        return JsonResponse({"status": False, "reason": "file too large (max 16MB)"}, status=400)
+
+    ext = f.name.rsplit(".", 1)[-1] if "." in f.name else ""
+    stored_name = f"whatsapp/{uuid.uuid4()}.{ext}" if ext else f"whatsapp/{uuid.uuid4()}"
+    path = default_storage.save(stored_name, f)
+    url = request.build_absolute_uri("/" + settings.MEDIA_URL + path)
+
+    return JsonResponse({"status": True, "url": url, "filename": f.name})
+
+
+@login_required
+@require_POST
+def chats_sync(request):
+    """Ask the worker to backfill history for a device's chats.
+
+    Anchors each chat on its oldest locally-known message (needs a WhatsApp
+    message id to anchor on — see worker `syncHistory`/`fetchMessageHistory`).
+    Results come back asynchronously through the webhook's `history_sync`
+    event, not in this response.
+    """
+    account = get_account(request)
+    device_id = request.POST.get("device")
+    device = account.devices.filter(id=device_id).first() if device_id else None
+    if not device:
+        return JsonResponse({"status": False, "reason": "device required"}, status=400)
+    if device.status != "connect":
+        return JsonResponse({"status": False, "reason": "device not connected"}, status=400)
+
+    contacts = [r["contact"] for r in chat_rows(account, device_id=device.id, limit=30)]
+
+    anchors = []
+    for contact in contacts:
+        oldest_in = (
+            IncomingMessage.objects.filter(device=device, contact=contact)
+            .exclude(inbox_id__isnull=True).exclude(inbox_id="")
+            .order_by("received_at").values("sender", "inbox_id", "received_at").first()
+        )
+        oldest_out = (
+            Message.objects.filter(device=device, target=contact)
+            .exclude(whatsapp_id__isnull=True).exclude(whatsapp_id="")
+            .order_by("created_at").values("target", "whatsapp_id", "created_at").first()
+        )
+        candidates = []
+        if oldest_in:
+            candidates.append({
+                "jid": oldest_in["sender"], "id": oldest_in["inbox_id"], "fromMe": False,
+                "at": oldest_in["received_at"],
+            })
+        if oldest_out:
+            candidates.append({
+                "jid": to_jid(oldest_out["target"]), "id": oldest_out["whatsapp_id"], "fromMe": True,
+                "at": oldest_out["created_at"],
+            })
+        if not candidates:
+            continue
+        anchor = min(candidates, key=lambda c: c["at"])
+        anchors.append({
+            "jid": anchor["jid"], "id": anchor["id"], "fromMe": anchor["fromMe"],
+            "timestamp": int(anchor["at"].timestamp()),
+        })
+
+    if not anchors:
+        return JsonResponse({"status": True, "chats": 0})
+
+    try:
+        call_worker("/sync-history", data={
+            "deviceId": str(device.id), "anchors": anchors,
+        }, token=device.device_token)
+    except Exception:
+        return JsonResponse({"status": False, "reason": "worker unreachable"}, status=502)
+
+    return JsonResponse({"status": True, "chats": len(anchors)})
 
 
 @login_required

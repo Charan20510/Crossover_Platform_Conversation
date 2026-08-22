@@ -1,0 +1,123 @@
+{% extends "core/base.html" %}
+{% block title %}Chats{% endblock %}
+{% block main_class %}main-flush{% endblock %}
+
+{% block content %}
+<div class="chat-shell" id="chat-shell"
+     data-contact="{{ contact }}"
+     data-token="{{ send_token }}"
+     data-device="{{ send_device.id|default:'' }}"
+     data-device-filter="{{ device_filter }}"
+     data-show-all="{{ show_all|yesno:'1,' }}"
+     data-can-attach="{{ can_attach|yesno:'1,' }}"
+     data-feed="{% url 'whatsapp:chats_feed' %}"
+     data-upload="{% url 'whatsapp:chat_upload' %}"
+     data-sync="{% url 'whatsapp:chats_sync' %}">
+
+  <!-- left: conversation list -->
+  <aside class="chat-list">
+    <div class="chat-list-head">
+      <div class="chat-list-head-row">
+        Chats
+        {% if devices %}
+        <button type="button" id="chat-sync-btn" class="btn btn-icon" title="Sync last 7 days of history">⟳</button>
+        {% endif %}
+      </div>
+      {% if devices %}
+      <select class="form-control" id="chat-device-select"
+              onchange="location.href = this.value ? '?device=' + this.value : location.pathname">
+        <option value="">All devices</option>
+        {% for d in devices %}
+        <option value="{{ d.id }}" {% if selected_device.id == d.id %}selected{% endif %}>
+          {{ d.name }} ({{ d.phone_number }}){% if d.status != 'connect' %} — offline{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <div style="position:relative;">
+        <input type="search" id="chat-search" class="chat-search"
+               placeholder="Search chats or contacts" autocomplete="off">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);padding:2px 4px;">
+        <input type="checkbox" id="chat-show-all" {% if show_all %}checked{% endif %}
+               onchange="const u = new URL(location); u.searchParams[this.checked ? 'set' : 'delete']('all', '1'); location.href = u;">
+        Show all conversations
+      </label>
+    </div>
+    <div id="chat-list-rows">
+      {% for c in chats %}
+      <a class="chat-row {% if c.contact == contact %}active{% endif %}"
+         href="{% url 'whatsapp:chat_detail' c.contact %}" data-contact="{{ c.contact }}"
+         data-search="{{ c.name|default:c.contact }}">
+        <div class="msg-avatar">{{ c.name|default:c.contact|slice:":1"|upper }}</div>
+        <div class="chat-row-body">
+          <div class="chat-row-top">
+            <span class="chat-row-name">{{ c.name|default:c.contact }}</span>
+            <span class="chat-row-time">{{ c.last_at|date:"d M, H:i" }}</span>
+          </div>
+          <div class="chat-row-preview">{% if c.last_direction == "out" %}You: {% endif %}{{ c.last_body }}</div>
+        </div>
+      </a>
+      {% empty %}
+      <div class="chat-empty" style="padding:32px 16px;">No conversations yet.</div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- right: thread -->
+  <section class="chat-pane">
+    {% if contact %}
+    <header class="chat-pane-head">
+      <div class="msg-avatar">{{ active.name|default:contact|slice:":1"|upper }}</div>
+      <div>
+        <div class="chat-row-name">{{ active.name|default:contact }}</div>
+        <div class="chat-row-time">{{ contact }}{% if send_device %} · via {{ send_device.name }}{% endif %}</div>
+      </div>
+    </header>
+
+    <div class="chat-thread" id="chat-thread">
+      {% regroup thread by day as day_groups %}
+      {% for group in day_groups %}
+      <div class="chat-day"><span>{{ group.grouper }}</span></div>
+      {% for m in group.list %}
+      <div class="bubble-{{ m.direction }}" data-id="{{ m.id }}" data-at="{{ m.at|date:'c' }}">
+        {% if m.attachment_url %}
+        <a class="bubble-file" href="{{ m.attachment_url }}" target="_blank" rel="noopener">
+          <span class="bubble-file-icon">📎</span>
+          <span class="bubble-file-name">{{ m.filename|default:"Attachment" }}</span>
+        </a>
+        {% endif %}
+        {% if m.body %}<div class="bubble-text">{{ m.body }}</div>{% endif %}
+        <div class="bubble-meta">
+          {{ m.at|date:"H:i" }}
+          {% if m.direction == "out" %}
+          <span class="bubble-tick{% if m.status == "read" %} bubble-tick-read{% endif %}">{% if m.status == "delivered" or m.status == "read" %}✓✓{% elif m.status == "sent" %}✓{% endif %}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endfor %}
+    </div>
+
+    <form class="chat-composer" id="chat-composer">
+      {% if can_attach %}
+      <input type="file" id="chat-attach-input" hidden>
+      <button type="button" id="chat-attach-btn" class="btn btn-icon" title="Attach a file">+</button>
+      {% else %}
+      <button type="button" class="btn btn-icon" title="Attachments require a super/advanced/ultra device" disabled>+</button>
+      {% endif %}
+      <input type="text" name="message" class="form-control" autocomplete="off"
+             placeholder="{% if send_token %}Type a message{% else %}Connect a device to reply{% endif %}"
+             {% if not send_token %}disabled{% endif %}>
+      <button type="submit" class="btn btn-primary" {% if not send_token %}disabled{% endif %}>Send</button>
+    </form>
+    {% else %}
+    <div class="chat-empty">
+      <div class="chat-empty-mark">💬</div>
+      <p>Select a conversation to start reading.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

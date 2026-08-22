@@ -1,0 +1,141 @@
+{% extends "mail/base_mail.html" %}
+{% block title %}Mail{% endblock %}
+
+{% block rc_body %}
+{% if not mailbox %}
+  <section class="rc-empty-state">
+    <h1>No mailbox yet</h1>
+    <p class="rc-muted">Add an IMAP/SMTP mailbox to start reading mail.</p>
+    <a class="rc-btn primary" href="{% url 'mail:settings' %}">Open Settings</a>
+  </section>
+{% else %}
+
+<!-- ── folder column ───────────────────────────────────────── -->
+<aside class="rc-folders" id="rc-folders" data-folder="{{ folder }}">
+  <div class="rc-col-head">
+    <span>Folders</span>
+    <button class="rc-icon-btn" data-action="sync-folders" title="Reload folder list from the server">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 10-2.6 5.9M20 5v5h-5" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <ul class="rc-folder-list" id="rc-folder-list">
+    {% for f in folders %}
+    <li>
+      <a class="rc-folder {% if f.path == folder %}active{% endif %}" href="?folder={{ f.path|urlencode }}"
+         data-folder="{{ f.path }}" data-kind="{{ f.kind }}">
+        <span class="rc-folder-name">{{ f.name }}</span>
+        {% if f.unread %}<span class="rc-badge">{{ f.unread }}</span>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="rc-col-foot">
+    <select id="rc-mailbox-select" title="Active mailbox">
+      {% for m in mailboxes %}<option value="{{ m.id }}" {% if m.id == mailbox.id %}selected{% endif %}>{{ m.email_address }}</option>{% endfor %}
+    </select>
+  </div>
+</aside>
+
+<!-- ── message list ────────────────────────────────────────── -->
+<section class="rc-list" id="rc-list" data-page-size="{{ page_size }}">
+  <div class="rc-toolbar">
+    <button class="rc-tool" data-action="select-toggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l5 5L20 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Select
+    </button>
+    <button class="rc-tool" data-action="threads-toggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M7 12h13M10 18h10" stroke-linecap="round"/></svg>
+      Threads
+    </button>
+    <button class="rc-tool" data-action="options-toggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>
+      Options
+    </button>
+    <span class="rc-spacer"></span>
+    <button class="rc-tool" data-action="refresh">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 10-2.6 5.9M20 5v5h-5" stroke-linecap="round"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <div class="rc-search">
+    <input type="search" id="rc-search" placeholder="Search subject, sender or body…" autocomplete="off">
+  </div>
+
+  <div class="rc-options hidden" id="rc-options">
+    <label>Rows per page
+      <select id="rc-page-size">
+        <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+        <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="rc-unread-only"> Unread only</label>
+  </div>
+
+  <div class="rc-bulkbar hidden" id="rc-bulkbar">
+    <label><input type="checkbox" id="rc-select-all"> All</label>
+    <span id="rc-selected-count">0 selected</span>
+    <span class="rc-spacer"></span>
+    <button class="rc-tool" data-action="bulk-read">Read</button>
+    <button class="rc-tool" data-action="bulk-unread">Unread</button>
+    <button class="rc-tool danger" data-action="bulk-delete">Delete</button>
+  </div>
+
+  <ul class="rc-rows" id="rc-rows"><li class="rc-loading">Loading…</li></ul>
+
+  <div class="rc-list-foot">
+    <button class="rc-icon-btn" data-action="page-prev" title="Previous page">&lsaquo;</button>
+    <span id="rc-summary">—</span>
+    <button class="rc-icon-btn" data-action="page-next" title="Next page">&rsaquo;</button>
+  </div>
+</section>
+
+<!-- ── reading pane ────────────────────────────────────────── -->
+<section class="rc-pane" id="rc-pane">
+  <div class="rc-toolbar" id="rc-pane-toolbar">
+    <button class="rc-tool" data-action="reply" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 8L4 13l6 5M4 13h9a6 6 0 016 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Reply
+    </button>
+    <button class="rc-tool" data-action="reply-all" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 8L3 13l5 5M13 8l-5 5 5 5M8 13h6a6 6 0 016 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Reply all
+    </button>
+    <button class="rc-tool" data-action="forward" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 8l6 5-6 5M20 13h-9a6 6 0 00-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Forward
+    </button>
+    <button class="rc-tool danger" data-action="delete" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2M6.5 7l.8 12h9.4l.8-12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Delete
+    </button>
+    <div class="rc-menu-wrap">
+      <button class="rc-tool" data-action="mark-menu" disabled>Mark ▾</button>
+      <div class="rc-menu hidden" data-menu="mark">
+        <button data-action="mark" data-flag="seen" data-value="1">Read</button>
+        <button data-action="mark" data-flag="seen" data-value="0">Unread</button>
+        <button data-action="mark" data-flag="flagged" data-value="1">Flagged</button>
+        <button data-action="mark" data-flag="flagged" data-value="0">Unflagged</button>
+      </div>
+    </div>
+    <div class="rc-menu-wrap">
+      <button class="rc-tool" data-action="more-menu" disabled>More ▾</button>
+      <div class="rc-menu hidden" data-menu="more">
+        <button data-action="move" data-dest="archive">Move to Archive</button>
+        <button data-action="move" data-dest="junk">Move to Junk</button>
+        <button data-action="move" data-dest="inbox">Move to Inbox</button>
+        <button data-action="print">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rc-pane-body" id="rc-pane-body">
+    <div class="rc-splash">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M3 6l9 7 9-7" stroke-linecap="round"/></svg>
+      <p>Select a message to read it.</p>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

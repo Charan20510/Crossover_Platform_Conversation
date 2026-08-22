@@ -1,0 +1,134 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Mail{% endblock %} — Messaging Platform</title>
+  <script>
+    // applied before first paint so the theme never flashes
+    try {
+      var t = localStorage.getItem('mailTheme');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="{% static 'core/style.css' %}?v=7">
+  <link rel="stylesheet" href="{% static 'mail/roundcube.css' %}?v=2">
+</head>
+<body class="rc-body">
+
+<div class="rc-shell">
+
+  <!-- ── icon rail ───────────────────────────────────────── -->
+  <nav class="rc-rail" aria-label="Mail sections">
+    <a class="rc-avatar" href="{% url 'accounts:profile' %}" title="{{ request.user.username }}">
+      {% if mailbox %}{{ mailbox.email_address|slice:":1"|upper }}{% else %}M{% endif %}
+    </a>
+
+    <button class="rc-rail-item" data-action="compose" title="Compose">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Compose</span>
+    </button>
+
+    <a class="rc-rail-item {% if nav_page == 'mail' %}active{% endif %}" href="{% url 'mail:client' %}" title="Mail">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M3 6l9 7 9-7" stroke-linecap="round"/></svg>
+      <span>Mail</span>
+    </a>
+
+    <a class="rc-rail-item {% if nav_page == 'contacts' %}active{% endif %}" href="{% url 'mail:contacts' %}" title="Contacts">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.4 3.1-5.5 7-5.5s7 2.1 7 5.5" stroke-linecap="round"/></svg>
+      <span>Contacts</span>
+    </a>
+
+    <a class="rc-rail-item {% if nav_page == 'settings' %}active{% endif %}" href="{% url 'mail:settings' %}" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.9 1.2V21a2 2 0 11-4 0v-.1A1.7 1.7 0 006 19.7l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.7 1.7 0 003 15a2 2 0 110-4 1.7 1.7 0 001.2-2.9L4.1 8A2 2 0 116.9 5.2L7 5.3A1.7 1.7 0 009.9 4.1V4a2 2 0 114 0v.1A1.7 1.7 0 0016.8 5.3l.1-.1A2 2 0 1119.7 8l-.1.1A1.7 1.7 0 0021 11a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Settings</span>
+    </a>
+
+    <div class="rc-rail-spacer"></div>
+
+    <button class="rc-rail-item" data-action="theme-toggle" title="Toggle light / dark mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4" stroke-linecap="round"/></svg>
+      <span data-theme-label>Light mode</span>
+    </button>
+
+    <button class="rc-rail-item" data-action="about" title="About">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9.2"/><path d="M12 11v5M12 7.6v.6" stroke-linecap="round"/></svg>
+      <span>About</span>
+    </button>
+
+    <a class="rc-rail-item" href="{% url 'accounts:logout' %}" title="Logout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 8l-4 4 4 4M6 12h9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Logout</span>
+    </a>
+  </nav>
+
+  {% block rc_body %}{% endblock %}
+</div>
+
+<!-- ── compose modal ───────────────────────────────────────── -->
+<div class="rc-modal-backdrop hidden" id="rc-compose">
+  <form class="rc-modal" id="rc-compose-form">
+    <div class="rc-modal-head">
+      <span id="rc-compose-title">New message</span>
+      <button type="button" class="rc-icon-btn" data-action="compose-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="rc-modal-body">
+      <input type="hidden" name="mode" value="new">
+      <input type="hidden" name="reply_to" value="">
+      <input type="hidden" name="draft_id" value="">
+      <label class="rc-field"><span>From</span>
+        <select name="mail_account">
+          {% for m in mailboxes %}<option value="{{ m.id }}" {% if mailbox and m.id == mailbox.id %}selected{% endif %}>{{ m.email_address }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="rc-field" style="position:relative;"><span>To</span><input type="text" name="to" id="rc-compose-to" autocomplete="off"></label>
+      <label class="rc-field"><span>Cc</span><input type="text" name="cc" autocomplete="off"></label>
+      <label class="rc-field"><span>Bcc</span><input type="text" name="bcc" autocomplete="off"></label>
+      <label class="rc-field"><span>Subject</span><input type="text" name="subject"></label>
+      <textarea name="text" rows="14" placeholder="Write your message…"></textarea>
+      <label class="rc-field"><span>Attachments</span><input type="file" name="attachments" multiple></label>
+    </div>
+    <div class="rc-modal-foot">
+      <button type="button" class="rc-btn" data-action="save-draft">Save draft</button>
+      <span class="rc-spacer"></span>
+      <button type="button" class="rc-btn" data-action="compose-close">Cancel</button>
+      <button type="submit" class="rc-btn primary">Send</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── about modal ─────────────────────────────────────────── -->
+<div class="rc-modal-backdrop hidden" id="rc-about">
+  <div class="rc-modal narrow">
+    <div class="rc-modal-head"><span>About</span>
+      <button type="button" class="rc-icon-btn" data-action="about-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="rc-modal-body">
+      <p><strong>Messaging Platform — Mail</strong></p>
+      <p class="rc-muted">IMAP/SMTP client served by Django, backed by the ImapFlow mail worker.</p>
+      <p><a href="/app/">← Back to the platform</a> · <a href="{% url 'whatsapp:dashboard' %}">WhatsApp</a> · <a href="{% url 'mail:dashboard' %}">Mail stats</a></p>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>window.MAIL_URLS = {
+  list: "{% url 'mail:list' %}",
+  message: "{% url 'mail:client' %}",
+  sync: "{% url 'mail:sync_folder' %}",
+  syncFolders: "{% url 'mail:sync_folders' %}",
+  flag: "{% url 'mail:flag' %}",
+  move: "{% url 'mail:move' %}",
+  del: "{% url 'mail:delete' %}",
+  send: "{% url 'mail:send' %}",
+  draft: "{% url 'mail:draft' %}",
+  poll: "{% url 'mail:poll' %}",
+  settings: "{% url 'mail:settings' %}",
+  messageBase: "/app/mail/message/"
+};</script>
+<script src="{% static 'core/core.js' %}?v=3"></script>
+<script src="{% static 'mail/mail.js' %}?v=4"></script>
+{% block rc_js %}{% endblock %}
+</body>
+</html>

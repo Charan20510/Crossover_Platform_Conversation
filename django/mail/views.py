@@ -155,20 +155,22 @@ def mail_sync(request):
     from django.utils import timezone as dj_timezone
     new_count = 0
     for em in result.get("emails", []):
-        msg_id = em.get("messageId") or em.get("uid", "")
-        if not msg_id:
+        # keyed on (folder, uid) — the same message legitimately exists in
+        # more than one folder, so message_id alone is not unique any more.
+        uid = str(em.get("uid") or "")
+        if not uid:
             continue
         _, created = IncomingEmail.objects.update_or_create(
             mail_account=mail_account,
-            message_id=str(msg_id),
+            folder=folder,
+            uid=uid,
             defaults={
-                "uid": str(em.get("uid", "")),
+                "message_id": str(em.get("messageId") or "")[:255],
                 "sender": em.get("from", ""),
                 "sender_name": em.get("fromName", ""),
                 "subject": em.get("subject", ""),
                 "body_text": em.get("text", ""),
                 "body_html": em.get("html", ""),
-                "folder": folder,
                 "is_read": em.get("isRead", False),
                 "has_attachments": em.get("hasAttachments", False),
                 "received_at": em.get("date") and datetime.fromisoformat(em["date"].replace("Z", "+00:00")) or dj_timezone.now(),
@@ -264,13 +266,14 @@ def mail_webhook_receiver(request):
     elif event_type == "incoming_email":
         IncomingEmail.objects.update_or_create(
             mail_account=mail_account,
-            message_id=body.get("messageId") or f"webhook-{body.get('subject','')}",
+            folder=body.get("folder") or "INBOX",
+            uid=str(body.get("uid") or body.get("messageId") or "")[:50],
             defaults={
+                "message_id": str(body.get("messageId") or "")[:255],
                 "sender": body.get("from", ""),
                 "subject": body.get("subject", ""),
                 "body_text": body.get("text", ""),
                 "body_html": body.get("html", ""),
-                "folder": body.get("folder", "INBOX"),
                 "has_attachments": body.get("hasAttachments", False),
             },
         )

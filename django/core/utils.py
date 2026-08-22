@@ -32,6 +32,15 @@ def normalize_phone(raw_phone, country_code=None):
     return phone
 
 
+def contact_key(sender, country_code=None):
+    """
+    Bare-digit grouping key from a WhatsApp JID or a plain phone number.
+    "919876543210@s.whatsapp.net" -> "919876543210"; "" -> "".
+    """
+    raw = str(sender or "").split("@")[0].split(":")[0].strip()
+    return normalize_phone(raw, country_code) if raw else ""
+
+
 def to_jid(phone, country_code=None):
     """Convert a phone number to WhatsApp JID format."""
     return f"{normalize_phone(phone, country_code)}@s.whatsapp.net"

@@ -45,6 +45,57 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+// Connect, run fn(client), always log out. Every IMAP endpoint below shares
+// this so credential handling and cleanup live in exactly one place.
+async function withImap(body, folder, fn) {
+  const { imapHost, imapPort, imapSecure, username, password } = body;
+  if (!imapHost || !username) {
+    const err = new Error('imapHost and username required');
+    err.clientError = true;
+    throw err;
+  }
+  const client = new ImapFlow({
+    host: imapHost,
+    port: imapPort || 993,
+    secure: imapSecure !== false,
+    auth: { user: username, pass: password },
+    logger: false,
+  });
+  await client.connect();
+  try {
+    if (folder) {
+      const lock = await client.getMailboxLock(folder);
+      try {
+        return await fn(client);
+      } finally {
+        lock.release();
+      }
+    }
+    return await fn(client);
+  } finally {
+    try { await client.logout(); } catch (_) {}
+  }
+}
+
+// Flatten a bodyStructure tree into attachment metadata (no bytes). Includes
+// the IMAP part id (node.part) — the only addressable handle for a later
+// `client.download(uid, partId)` — which simpleParser's attachment list does
+// not carry.
+function collectAttachments(node, out = []) {
+  if (!node) return out;
+  if (node.disposition === 'attachment' || (node.dispositionParameters && node.dispositionParameters.filename)) {
+    out.push({
+      filename: (node.dispositionParameters && node.dispositionParameters.filename)
+        || (node.parameters && node.parameters.name) || 'attachment',
+      size: node.size || 0,
+      contentType: node.type || 'application/octet-stream',
+      partId: node.part || '',
+    });
+  }
+  (node.childNodes || []).forEach(child => collectAttachments(child, out));
+  return out;
+}
+
 // ============================================================
 // HEALTH (public)
 // ============================================================
@@ -114,7 +165,7 @@ app.post('/connect', async (req, res) => {
 // ============================================================
 app.post('/send', async (req, res) => {
   const {
-    from, to, cc, bcc, subject, text, html, attachments,
+    from, to, cc, bcc, subject, text, html, attachments, inReplyTo, references,
     smtpHost, smtpPort, smtpSecure, username, password,
   } = req.body;
 
@@ -140,6 +191,9 @@ app.post('/send', async (req, res) => {
       html: html || '',
       attachments: attachments || [],
     };
+    // threading headers (reply / reply-all)
+    if (inReplyTo) mailOptions.inReplyTo = inReplyTo;
+    if (references) mailOptions.references = references;
 
     const info = await transporter.sendMail(mailOptions);
 
@@ -157,93 +211,86 @@ app.post('/send', async (req, res) => {
 // FETCH EMAILS (IMAP via ImapFlow)
 // ============================================================
 app.post('/fetch', async (req, res) => {
-  const {
-    accountId, folder, limit, unseen, search,
-    imapHost, imapPort, imapSecure, username, password,
-  } = req.body;
+  const { accountId, folder, limit, offset, unseen, search, notify } = req.body;
+  const mailbox = folder || 'INBOX';
 
-  if (!imapHost || !username) {
-    return res.json({ status: false, reason: 'imapHost and username required' });
-  }
-
-  let client;
   try {
-    client = new ImapFlow({
-      host: imapHost,
-      port: imapPort || 993,
-      secure: imapSecure !== false,
-      auth: { user: username, pass: password },
-      logger: false,
+    const out = await withImap(req.body, mailbox, async (client) => {
+      const searchCriteria = {};
+      if (unseen) searchCriteria.seen = false;
+      if (search) searchCriteria.or = [{ subject: search }, { from: search }, { body: search }];
+      if (!unseen && !search) searchCriteria.all = true;
+
+      const uids = await client.search(searchCriteria, { uid: true }) || [];
+      const fetchLimit = Math.min(limit || 50, 200);
+      const start = Math.max(offset || 0, 0);
+      // uids come back ascending; newest first, then page from `offset`.
+      const uidsToFetch = uids.slice().reverse().slice(start, start + fetchLimit);
+
+      const emails = [];
+      for (const uid of uidsToFetch) {
+        const msg = await client.fetchOne(
+          uid, { source: true, envelope: true, flags: true, bodyStructure: true, size: true }, { uid: true });
+        if (!msg) continue;
+
+        const envelope = msg.envelope || {};
+        const flags = msg.flags || new Set();
+        const addrs = (list) => (list || []).map(a => a.address).filter(Boolean).join(', ');
+
+        let bodyText = '';
+        let bodyHtml = '';
+        let references = '';
+        if (msg.source) {
+          try {
+            const raw = msg.source instanceof Buffer ? msg.source : Buffer.from(msg.source);
+            const parsed = await simpleParser(raw);
+            bodyText = parsed.text || '';
+            bodyHtml = parsed.html || '';
+            references = Array.isArray(parsed.references)
+              ? parsed.references.join(' ') : (parsed.references || '');
+          } catch (_) { /* unparseable body — headers are still useful */ }
+        }
+        // Always sourced from bodyStructure, not simpleParser's attachment
+        // list — only bodyStructure carries a usable IMAP part id.
+        const attachments = collectAttachments(msg.bodyStructure);
+
+        emails.push({
+          uid,
+          messageId: envelope.messageId || '',
+          subject: envelope.subject || '(no subject)',
+          from: envelope.from && envelope.from[0] ? envelope.from[0].address : '',
+          fromName: envelope.from && envelope.from[0] ? envelope.from[0].name || '' : '',
+          to: addrs(envelope.to),
+          cc: addrs(envelope.cc),
+          inReplyTo: envelope.inReplyTo || '',
+          references,
+          date: envelope.date ? new Date(envelope.date).toISOString() : new Date().toISOString(),
+          flags: Array.from(flags),
+          isRead: flags.has('\\Seen'),
+          isStarred: flags.has('\\Flagged'),
+          isAnswered: flags.has('\\Answered'),
+          isDraft: flags.has('\\Draft'),
+          hasAttachments: attachments.length > 0,
+          attachmentCount: attachments.length,
+          attachments,
+          text: bodyText.substring(0, 20000),
+          html: bodyHtml.substring(0, 60000),
+          size: msg.size || 0,
+        });
+      }
+      return { total: uids.length, emails };
     });
 
-    await client.connect();
-    await client.mailboxOpen(folder || 'INBOX');
-
-    // Build search criteria
-    const searchCriteria = {};
-    if (unseen) searchCriteria.seen = false;
-    if (search) searchCriteria.subject = search;
-
-    // Get message UIDs
-    const uids = await client.search(searchCriteria, { uid: true });
-    const fetchLimit = Math.min(limit || 50, 200);
-    const uidsToFetch = uids.slice(-fetchLimit).reverse(); // most recent first
-
-    const emails = [];
-
-    for (const uid of uidsToFetch) {
-      const msg = await client.fetchOne(uid, { source: true, envelope: true, flags: true, bodyStructure: true }, { uid: true });
-
-      if (!msg) continue;
-
-      const envelope = msg.envelope || {};
-      const flags = msg.flags || new Set();
-      const hasAttachments = msg.bodyStructure && msg.bodyStructure.childNodes
-        ? msg.bodyStructure.childNodes.some(n => n.disposition === 'attachment')
-        : false;
-
-      let bodyText = '';
-      let bodyHtml = '';
-
-      // Parse the raw source for body content
-      if (msg.source) {
-        try {
-          const raw = msg.source instanceof Buffer ? msg.source : Buffer.from(msg.source);
-          const parsed = await simpleParser(raw);
-          bodyText = parsed.text || '';
-          bodyHtml = parsed.html || '';
-        } catch (_) {
-          // If parsing fails, skip body
-        }
-      }
-
-      emails.push({
-        uid,
-        messageId: envelope.messageId || '',
-        subject: envelope.subject || '(no subject)',
-        from: envelope.from && envelope.from[0] ? `${envelope.from[0].address}` : '',
-        fromName: envelope.from && envelope.from[0] ? envelope.from[0].name || '' : '',
-        to: envelope.to ? envelope.to.map(a => a.address).join(', ') : '',
-        date: envelope.date ? envelope.date.toISOString() : new Date().toISOString(),
-        isRead: flags.has('\\Seen'),
-        hasAttachments,
-        attachmentCount: hasAttachments ? 1 : 0,
-        text: bodyText.substring(0, 5000),
-        html: bodyHtml.substring(0, 10000),
-        size: msg.size || 0,
-      });
-    }
-
-    await client.mailboxClose();
-    await client.logout();
-
-    // Notify Django of incoming emails (for real-time webhook)
-    for (const em of emails) {
-      if (!em.isRead) {
+    // Legacy webhook push (the token API's /mail/sync relies on it). The new
+    // session views pass notify:false and upsert from the response instead.
+    if (notify !== false) {
+      for (const em of out.emails) {
+        if (em.isRead) continue;
         try {
           await axios.post(DJANGO_WEBHOOK_URL, {
             event: 'incoming_email',
             accountId,
+            uid: em.uid,
             messageId: em.messageId,
             subject: em.subject,
             from: em.from,
@@ -252,17 +299,128 @@ app.post('/fetch', async (req, res) => {
             html: em.html.substring(0, 2000),
             hasAttachments: em.hasAttachments,
             attachmentCount: em.attachmentCount,
-            folder: folder || 'INBOX',
+            folder: mailbox,
           });
         } catch (_) {}
       }
     }
 
-    return res.json({ status: true, count: emails.length, emails });
+    return res.json({ status: true, count: out.emails.length, total: out.total, emails: out.emails });
   } catch (e) {
-    if (client) {
-      try { await client.logout(); } catch (_) {}
-    }
+    return res.json({ status: false, reason: e.message });
+  }
+});
+
+// ============================================================
+// FLAG / UNFLAG (\Seen, \Flagged, \Answered, \Draft)
+// ============================================================
+app.post('/flag', async (req, res) => {
+  const { folder, uids, flags, add } = req.body;
+  if (!Array.isArray(uids) || !uids.length || !Array.isArray(flags) || !flags.length) {
+    return res.json({ status: false, reason: 'uids and flags required' });
+  }
+  try {
+    const ok = await withImap(req.body, folder || 'INBOX', async (client) => {
+      const range = uids.join(',');
+      return add === false
+        ? client.messageFlagsRemove(range, flags, { uid: true })
+        : client.messageFlagsAdd(range, flags, { uid: true });
+    });
+    return res.json({ status: !!ok });
+  } catch (e) {
+    return res.json({ status: false, reason: e.message });
+  }
+});
+
+// ============================================================
+// MOVE (drives Delete -> Trash, Junk, Archive)
+// ============================================================
+app.post('/move', async (req, res) => {
+  const { folder, uids, destination } = req.body;
+  if (!Array.isArray(uids) || !uids.length || !destination) {
+    return res.json({ status: false, reason: 'uids and destination required' });
+  }
+  try {
+    const result = await withImap(req.body, folder || 'INBOX', (client) =>
+      client.messageMove(uids.join(','), destination, { uid: true }));
+    return res.json({ status: true, moved: (result && result.uidMap && result.uidMap.size) || uids.length });
+  } catch (e) {
+    return res.json({ status: false, reason: e.message });
+  }
+});
+
+// ============================================================
+// DELETE / EXPUNGE (only used to empty Trash)
+// ============================================================
+app.post('/delete', async (req, res) => {
+  const { folder, uids } = req.body;
+  if (!Array.isArray(uids) || !uids.length) {
+    return res.json({ status: false, reason: 'uids required' });
+  }
+  try {
+    const ok = await withImap(req.body, folder || 'INBOX', (client) =>
+      client.messageDelete(uids.join(','), { uid: true }));
+    return res.json({ status: !!ok });
+  } catch (e) {
+    return res.json({ status: false, reason: e.message });
+  }
+});
+
+// ============================================================
+// APPEND (save draft / copy outbound mail into Sent)
+// ============================================================
+app.post('/append', async (req, res) => {
+  const { folder, raw, flags } = req.body;
+  if (!folder || !raw) {
+    return res.json({ status: false, reason: 'folder and raw required' });
+  }
+  try {
+    const result = await withImap(req.body, null, (client) =>
+      client.append(folder, Buffer.from(raw, 'utf8'), flags || [], new Date()));
+    return res.json({ status: true, uid: (result && result.uid) || null, folder });
+  } catch (e) {
+    return res.json({ status: false, reason: e.message });
+  }
+});
+
+// ============================================================
+// DOWNLOAD ONE ATTACHMENT (by IMAP part id from collectAttachments)
+// ============================================================
+app.post('/attachment', async (req, res) => {
+  const { folder, uid, partId, maxBytes } = req.body;
+  if (!uid || !partId) {
+    return res.json({ status: false, reason: 'uid and partId required' });
+  }
+  const cap = maxBytes || (10 * 1024 * 1024);
+  try {
+    const out = await withImap(req.body, folder || 'INBOX', async (client) => {
+      const { meta, content } = await client.download(uid, partId, { uid: true });
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of content) {
+        size += chunk.length;
+        if (size > cap) {
+          content.destroy();
+          const err = new Error('attachment exceeds maxBytes');
+          err.tooLarge = true;
+          throw err;
+        }
+        chunks.push(chunk);
+      }
+      return {
+        filename: (meta && meta.filename) || 'attachment',
+        contentType: (meta && meta.contentType) || 'application/octet-stream',
+        buffer: Buffer.concat(chunks),
+      };
+    });
+    return res.json({
+      status: true,
+      filename: out.filename,
+      contentType: out.contentType,
+      size: out.buffer.length,
+      contentB64: out.buffer.toString('base64'),
+    });
+  } catch (e) {
     return res.json({ status: false, reason: e.message });
   }
 });
@@ -271,44 +429,30 @@ app.post('/fetch', async (req, res) => {
 // LIST IMAP FOLDERS
 // ============================================================
 app.post('/folders', async (req, res) => {
-  const { imapHost, imapPort, imapSecure, username, password } = req.body;
-
-  if (!imapHost || !username) {
-    return res.json({ status: false, reason: 'imapHost and username required' });
-  }
-
-  let client;
   try {
-    client = new ImapFlow({
-      host: imapHost,
-      port: imapPort || 993,
-      secure: imapSecure !== false,
-      auth: { user: username, pass: password },
-      logger: false,
-    });
-
-    await client.connect();
-    const folders = [];
-    const lock = await client.getMailboxLock('INBOX');
-    try {
-      for await (const folder of client.list()) {
-        folders.push({
+    const folders = await withImap(req.body, null, async (client) => {
+      const out = [];
+      for (const folder of await client.list()) {
+        // ponytail: one STATUS round-trip per folder. Fine for a handful of
+        // mailboxes; batch/cache it if someone has a hundred.
+        let counts = {};
+        try {
+          counts = await client.status(folder.path, { messages: true, unseen: true });
+        } catch (_) {}
+        out.push({
           name: folder.name,
           path: folder.path,
-          specialUse: folder.flags || [],
-          delimiter: folder.delimiter,
+          specialUse: folder.specialUse || '',
+          flags: Array.from(folder.flags || []),
+          delimiter: folder.delimiter || '/',
+          messages: counts.messages || 0,
+          unseen: counts.unseen || 0,
         });
       }
-    } finally {
-      lock.release();
-    }
-    await client.logout();
-
+      return out;
+    });
     return res.json({ status: true, folders });
   } catch (e) {
-    if (client) {
-      try { await client.logout(); } catch (_) {}
-    }
     return res.json({ status: false, reason: e.message });
   }
 });

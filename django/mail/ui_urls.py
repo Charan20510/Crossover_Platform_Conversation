@@ -1,16 +1,42 @@
 """
 Mail browser UI URL routing — mounted at /app/mail/.
+
+The Roundcube-style client lives at `client/`; the old Inbox / Sent / Compose /
+Accounts pages are gone and their names now redirect into it, so existing
+`{% url %}` references (and the topbar bell, via core.context_processors)
+keep resolving.
 """
 
 from django.urls import path
+from django.views.generic import RedirectView
+
 from . import ui_views
 
 app_name = "mail"
 
 urlpatterns = [
-    path("",           ui_views.mail_dashboard,      name="dashboard"),
-    path("accounts/",  ui_views.mail_accounts_view,  name="accounts"),
-    path("compose/",   ui_views.mail_compose_view,   name="compose"),
-    path("sent/",      ui_views.mail_sent_view,      name="sent"),
-    path("inbox/",     ui_views.mail_inbox_view,     name="inbox"),
+    path("",             ui_views.mail_dashboard, name="dashboard"),
+
+    # client
+    path("client/",           ui_views.mail_client,       name="client"),
+    path("list/",             ui_views.mail_list,         name="list"),
+    path("message/<uuid:pk>/", ui_views.mail_message,     name="message"),
+    path("message/<uuid:pk>/thread/",     ui_views.mail_thread,     name="thread"),
+    path("message/<uuid:pk>/attachment/<int:index>/", ui_views.mail_attachment, name="attachment"),
+    path("sync/",             ui_views.mail_sync_folder,  name="sync_folder"),
+    path("sync/folders/",     ui_views.mail_sync_folders, name="sync_folders"),
+    path("flag/",             ui_views.mail_flag,         name="flag"),
+    path("move/",             ui_views.mail_move,         name="move"),
+    path("delete/",           ui_views.mail_delete,       name="delete"),
+    path("send/",             ui_views.mail_send,         name="send"),
+    path("draft/",            ui_views.mail_draft,        name="draft"),
+    path("poll/",             ui_views.mail_poll,         name="poll"),
+    path("contacts/",         ui_views.mail_contacts,     name="contacts"),
+    path("settings/",         ui_views.mail_settings,     name="settings"),
+
+    # superseded pages
+    path("inbox/",    RedirectView.as_view(pattern_name="mail:client"),   name="inbox"),
+    path("sent/",     RedirectView.as_view(pattern_name="mail:client"),   name="sent"),
+    path("compose/",  RedirectView.as_view(pattern_name="mail:client"),   name="compose"),
+    path("accounts/", RedirectView.as_view(pattern_name="mail:settings"), name="accounts"),
 ]

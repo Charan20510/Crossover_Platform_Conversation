@@ -27,6 +27,7 @@ const {
   getPendingQR,
   requestPairingCode,
   sendTyping,
+  syncHistory,
   getActiveSessions,
   retryQueue,
 } = require('./sessionManager');
@@ -214,6 +215,26 @@ app.post('/validate', async (req, res) => {
   try {
     const result = await validateNumbers(deviceId, numbers);
     return res.json(result);
+  } catch (e) {
+    return res.json({ status: false, reason: e.message });
+  }
+});
+
+// ============================================================
+// SYNC HISTORY (on-demand backfill for an already-linked device)
+// ============================================================
+app.post('/sync-history', async (req, res) => {
+  const { deviceId, anchors } = req.body;
+  if (!deviceId || !Array.isArray(anchors)) {
+    return res.json({ status: false, reason: 'deviceId and anchors[] required' });
+  }
+  try {
+    // Fire-and-forget: results land in Django via the messaging-history.set
+    // handler / webhook, not in this response.
+    syncHistory(deviceId, anchors).catch((e) => {
+      console.error(`[SYNC-HISTORY ERROR] ${deviceId}:`, e.message);
+    });
+    return res.json({ status: true, requested: anchors.length });
   } catch (e) {
     return res.json({ status: false, reason: e.message });
   }

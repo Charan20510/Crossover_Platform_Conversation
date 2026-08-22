@@ -79,11 +79,13 @@ class Message(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="messages")
-    target = models.CharField(max_length=20)
+    target = models.CharField(max_length=20, db_index=True)
     body = models.TextField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="process")
     state = models.CharField(max_length=20, blank=True, null=True)
     whatsapp_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    attachment_url = models.URLField(blank=True, null=True)
+    filename = models.CharField(max_length=255, blank=True)
     scheduled_at = models.DateTimeField(blank=True, null=True)
     sent_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
@@ -133,7 +135,9 @@ class IncomingMessage(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="incoming_messages")
-    sender = models.CharField(max_length=20)
+    sender = models.CharField(max_length=64)
+    # Bare digits split out of `sender` — the grouping key that matches Message.target.
+    contact = models.CharField(max_length=32, db_index=True, blank=True)
     message = models.TextField()
     name = models.CharField(max_length=255, blank=True)
     location = models.CharField(max_length=100, blank=True, null=True)
@@ -144,6 +148,7 @@ class IncomingMessage(models.Model):
 
     class Meta:
         db_table = "api_incomingmessage"
+        indexes = [models.Index(fields=["device", "-received_at"], name="wa_incoming_dev_recv_idx")]
 
     def __str__(self):
         return f"{self.sender}: {self.message[:30]}..."
