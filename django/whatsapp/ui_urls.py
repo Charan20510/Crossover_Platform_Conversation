@@ -1,6 +1,3 @@
-"""
-WhatsApp browser UI URL routing — mounted at /app/whatsapp/.
-"""
 
 from django.urls import path
 from django.views.generic import RedirectView
@@ -21,7 +18,5 @@ urlpatterns = [
     path("templates/",   ui_views.templates_view,  name="templates"),
     path("autoreplies/", ui_views.autoreplies_view, name="autoreplies"),
 
-    # superseded — Chats absorbed the Inbox page; keep the URL name alive,
-    # core.context_processors resolves it for the topbar bell.
     path("inbox/", RedirectView.as_view(pattern_name="whatsapp:chats"), name="inbox"),
 ]

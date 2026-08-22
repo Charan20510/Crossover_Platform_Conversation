@@ -19,7 +19,6 @@
 
 <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
 
-  <!-- create / edit form -->
   <div class="card" style="flex:1;min-width:280px;" id="contact-form-card">
     <div class="card-title" id="contact-form-title">{% if editing %}Edit Contact{% else %}New Contact{% endif %}</div>
     <form method="post" id="contact-form">
@@ -85,7 +84,7 @@
       </div>
       <div class="form-group">
         <label class="form-label" for="c-notes">Notes</label>
-        <textarea class="form-control" id="c-notes" name="notes" rows="3" placeholder="Anything worth remembering…">{{ editing.notes|default:'' }}</textarea>
+<textarea class="form-control" id="c-notes" name="notes" rows="3" placeholder="Anything worth remembering…">{{ editing.notes|default:'' }}</textarea>
       </div>
 
       <div style="display:flex;gap:10px;">
@@ -95,7 +94,6 @@
     </form>
   </div>
 
-  <!-- contact list -->
   <div class="card" style="flex:2;min-width:320px;">
     <div class="card-title">All Contacts ({{ contacts|length }})</div>
     {% if contacts %}

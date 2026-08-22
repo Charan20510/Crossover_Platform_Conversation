@@ -1,12 +1,6 @@
-/* ============================================================
-   Shared UI helpers — toast, fetch wrapper, token-copy, count-up
-   stats, and the cross-channel notification bell. Loaded on every
-   page; whatsapp.js / mail.js load after this and use Toast/apiPost.
-   ============================================================ */
 
 'use strict';
 
-// ── toast ────────────────────────────────────────────────────
 const Toast = (() => {
   let container = null;
   function _ensure() {
@@ -35,7 +29,6 @@ const Toast = (() => {
   return { show, ok: (m) => show(m, 'ok'), err: (m) => show(m, 'err', 4500) };
 })();
 
-// ── sidebar toggle (collapsed by default on flush pages, e.g. Chats) ──
 const appShell = document.getElementById('app-shell');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 if (appShell) {
@@ -45,7 +38,6 @@ if (appShell) {
   }
 }
 
-// ── fetch wrapper (attaches device/account/mail token) ────────
 async function apiPost(url, body, token) {
   const res = await fetch(url, {
     method: 'POST',
@@ -58,9 +50,6 @@ async function apiPost(url, body, token) {
   return res.json();
 }
 
-// ── contact type-ahead (used by WhatsApp Chats search + Mail compose "To") ──
-// Wires `input` to a debounced /app/contacts/search/?q= lookup, rendering a
-// suggestion menu under it. `onPick(contact)` fires on click/Enter.
 function contactSearch(input, onPick) {
   if (!input) return;
   const menu = document.createElement('div');
@@ -117,7 +106,6 @@ function contactSearch(input, onPick) {
   });
 }
 
-// ── copy to clipboard ────────────────────────────────────────
 function copyText(text) {
   navigator.clipboard.writeText(text).then(() => Toast.ok('Copied!'));
 }
@@ -126,7 +114,6 @@ document.querySelectorAll('.token-box').forEach(el => {
   el.addEventListener('click', () => copyText(el.dataset.full || el.textContent.trim()));
 });
 
-// ── count-up animation ───────────────────────────────────────
 function countUp(el, target, duration = 800) {
   const start = performance.now();
   const from = parseInt(el.textContent, 10) || 0;
@@ -142,7 +129,6 @@ document.querySelectorAll('.stat-value[data-count]').forEach(el => {
   countUp(el, parseInt(el.dataset.count, 10));
 });
 
-// ── notification bell polling (cross-channel: whatsapp + mail) ─
 const bell = document.getElementById('bell-btn');
 const bellBadge = document.getElementById('bell-badge');
 let lastCount = 0;
@@ -170,7 +156,7 @@ async function pollNotifications() {
       }
     }
     lastCount = count;
-  } catch (_) { /* silently fail */ }
+  } catch (_) { }
 }
 
 if (bell) {

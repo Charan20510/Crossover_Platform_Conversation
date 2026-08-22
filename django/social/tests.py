@@ -1,11 +1,3 @@
-"""
-Social app tests — the non-obvious logic: the ChannelAdapter registry lookup,
-Telegram webhook parsing, and the (social_account, external_id) dedupe.
-
-Telegram's Bot API is never contacted: every test patches `requests.post`,
-the single seam all adapter HTTP traffic goes through (mirrors mail/tests.py
-patching call_mail_worker).
-"""
 
 import json
 from unittest.mock import patch, MagicMock
@@ -19,13 +11,11 @@ from .adapters import get_adapter
 from .adapters.telegram import TelegramAdapter
 from .models import SocialAccount, SocialMessage
 
-
 def make_account(user_account, platform="telegram", token="tok123"):
     sa = SocialAccount(account=user_account, platform=platform, name="Bot")
     sa.credentials = {"bot_token": token}
     sa.save()
     return sa
-
 
 class AdapterRegistryTests(TestCase):
     def test_telegram_registered(self):
@@ -33,7 +23,6 @@ class AdapterRegistryTests(TestCase):
 
     def test_unknown_platform_returns_none(self):
         self.assertIsNone(get_adapter("myspace"))
-
 
 class TelegramAdapterTests(TestCase):
     def setUp(self):
@@ -74,10 +63,7 @@ class TelegramAdapterTests(TestCase):
         payload = {"edited_message": {"message_id": 7}}
         self.assertIsNone(TelegramAdapter().handle_webhook(self.sa, payload))
 
-
 class SocialWebhookViewTests(TestCase):
-    """Exercises the dedupe path through the actual view, same as mail's
-    (folder, uid) tests — two identical updates must produce one row."""
 
     def setUp(self):
         self.user = User.objects.create_user("bot-owner2", password="pw12345678")

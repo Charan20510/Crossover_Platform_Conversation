@@ -1,11 +1,6 @@
-/* ============================================================
-   WhatsApp section — device connect/QR, send, message actions.
-   Depends on Toast/apiPost from core/core.js (loaded first).
-   ============================================================ */
 
 'use strict';
 
-// ── QR / connect modal ────────────────────────────────────────
 const qrModal = document.getElementById('qr-modal');
 const qrContent = document.getElementById('qr-content');
 const qrStatusEl = document.getElementById('qr-status');
@@ -23,7 +18,7 @@ async function connectDevice(deviceId, token, phone) {
       qrContent.innerHTML = `<div class="alert alert-error">${data.reason || 'Failed'}</div>`;
       return;
     }
-    const rawQR = data.qr || data.url;  // worker returns bare base64 in 'url'
+    const rawQR = data.qr || data.url;
     if (rawQR) {
       const src = rawQR.startsWith('data:') ? rawQR : `data:image/png;base64,${rawQR}`;
       const img = `<img src="${src}" alt="QR Code">`;
@@ -37,7 +32,6 @@ async function connectDevice(deviceId, token, phone) {
     } else {
       qrContent.innerHTML = `<div class="alert alert-info">Check worker logs for QR output.</div>`;
     }
-    // Poll device status until connected
     qrPollTimer = setInterval(async () => {
       const d = await apiPost('/device', {}, token);
       if (d.device_status === 'connect') {
@@ -58,7 +52,6 @@ function closeQrModal() {
 }
 window.closeQrModal = closeQrModal;
 
-// Wire up Connect buttons
 document.querySelectorAll('[data-action=connect]').forEach(btn => {
   btn.addEventListener('click', () => {
     const { deviceId, token, phone } = btn.dataset;
@@ -66,7 +59,6 @@ document.querySelectorAll('[data-action=connect]').forEach(btn => {
   });
 });
 
-// ── disconnect device ─────────────────────────────────────────
 document.querySelectorAll('[data-action=disconnect]').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!confirm('Disconnect this device from WhatsApp?')) return;
@@ -83,7 +75,6 @@ document.querySelectorAll('[data-action=disconnect]').forEach(btn => {
   });
 });
 
-// ── add device form ───────────────────────────────────────────
 const addDeviceForm = document.getElementById('add-device-form');
 if (addDeviceForm) {
   addDeviceForm.addEventListener('submit', async (e) => {
@@ -110,7 +101,6 @@ if (addDeviceForm) {
   });
 }
 
-// ── send message form ─────────────────────────────────────────
 const sendForm = document.getElementById('send-form');
 if (sendForm) {
   const deviceSel = sendForm.querySelector('[name=device]');
@@ -148,7 +138,6 @@ if (sendForm) {
     }
   });
 
-  // Template fill
   document.querySelectorAll('[data-tpl]').forEach(btn => {
     btn.addEventListener('click', () => {
       const ta = sendForm.querySelector('[name=message]');
@@ -158,7 +147,6 @@ if (sendForm) {
   });
 }
 
-// ── delete device ─────────────────────────────────────────────
 document.querySelectorAll('[data-action=delete-device]').forEach(btn => {
   btn.addEventListener('click', async () => {
     const { token, name } = btn.dataset;
@@ -175,14 +163,12 @@ document.querySelectorAll('[data-action=delete-device]').forEach(btn => {
   });
 });
 
-// ── close modal on backdrop click ────────────────────────────
 if (qrModal) {
   qrModal.addEventListener('click', (e) => {
     if (e.target === qrModal) closeQrModal();
   });
 }
 
-// ── Chats: composer + 5s poll ─────────────────────────────────
 const chatShell = document.getElementById('chat-shell');
 if (chatShell) {
   const thread = document.getElementById('chat-thread');
@@ -201,7 +187,7 @@ if (chatShell) {
     return m ? decodeURIComponent(m[2]) : '';
   };
   let lastAt = null;
-  let pendingUpload = null;  // { url, filename } staged by the attach button
+  let pendingUpload = null;
 
   const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
   const fmt = (iso) => {
@@ -228,14 +214,12 @@ if (chatShell) {
     thread.appendChild(el);
   }
 
-  // seed lastAt from the server-rendered thread
   if (thread) {
     const bubbles = thread.querySelectorAll('[data-at]');
     if (bubbles.length) lastAt = bubbles[bubbles.length - 1].dataset.at;
     scrollDown();
   }
 
-  // attach button — uploads immediately, staged for the next send
   const attachBtn = document.getElementById('chat-attach-btn');
   const attachInput = document.getElementById('chat-attach-input');
   if (canAttach && attachBtn && attachInput) {
@@ -271,7 +255,6 @@ if (chatShell) {
     });
   }
 
-  // composer — reuses the token-authed /send endpoint, no new backend path
   const composer = document.getElementById('chat-composer');
   if (composer) {
     composer.addEventListener('submit', async (e) => {
@@ -300,8 +283,6 @@ if (chatShell) {
     });
   }
 
-  // sync button — asks the worker to backfill history for the selected
-  // device; results land via the poll once the webhook processes them
   const syncBtn = document.getElementById('chat-sync-btn');
   if (syncBtn && syncUrl) {
     syncBtn.addEventListener('click', async () => {
@@ -331,7 +312,6 @@ if (chatShell) {
     });
   }
 
-  // client-side search — the full list is already in the DOM
   const searchInput = document.getElementById('chat-search');
   if (searchInput && listRows) {
     searchInput.addEventListener('input', () => {
@@ -343,14 +323,12 @@ if (chatShell) {
     });
   }
 
-  // contact profile type-ahead — pick a profile to jump straight into that chat
   if (searchInput) {
     contactSearch(searchInput, (c) => {
       if (c.whatsapp) location.href = `/app/whatsapp/chats/${c.whatsapp}/`;
     });
   }
 
-  // delegated: rows are re-rendered by the poll, so bind on the container
   if (listRows) {
     listRows.addEventListener('click', (e) => {
       const row = e.target.closest('.chat-row');
@@ -370,7 +348,6 @@ if (chatShell) {
     } catch (err) { return; }
 
     (data.messages || []).forEach(m => {
-      // drop the optimistic bubble once the real row arrives
       const tmp = thread && thread.querySelector('[data-id^="tmp-"]');
       if (tmp && m.direction === 'out') tmp.remove();
       addBubble(m);

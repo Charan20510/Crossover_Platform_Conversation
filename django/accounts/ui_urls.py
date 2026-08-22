@@ -1,6 +1,3 @@
-"""
-Auth + profile URL routing — mounted at /app/accounts/.
-"""
 
 from django.urls import path, reverse_lazy
 from django.contrib.auth import views as auth_views
@@ -8,7 +5,6 @@ from . import views
 
 app_name = "accounts"
 
-# ── Password reset (Django's built-in, secure token flow) ────────────────────
 password_reset_urls = [
     path(
         "password-reset/",

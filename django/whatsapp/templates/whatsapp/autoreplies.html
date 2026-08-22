@@ -9,7 +9,6 @@
   </div>
 </div>
 
-<!-- device picker -->
 <div class="card" style="margin-bottom:16px;">
   <form method="get">
     <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
@@ -28,7 +27,6 @@
 
 {% if selected_device %}
 
-<!-- create / edit form -->
 <div class="card" style="margin-bottom:16px;" id="rule-form-card">
   <div class="card-title" id="rule-form-title">New Auto-reply Rule</div>
   <form method="post" action="{% url 'whatsapp:autoreplies' %}?device={{ selected_device.id }}" id="rule-form">
@@ -48,7 +46,7 @@
 
     <div class="form-group">
       <label class="form-label" for="rule-reply">Reply</label>
-      <textarea class="form-control" id="rule-reply" name="reply" rows="4" required
+<textarea class="form-control" id="rule-reply" name="reply" rows="4" required
         placeholder="Hello! Thanks for reaching out…"></textarea>
     </div>
 
@@ -66,7 +64,6 @@
   </form>
 </div>
 
-<!-- rules list -->
 <div class="card">
   <div class="card-title">Rules for {{ selected_device.name }} ({{ rules|length }})</div>
   {% if rules %}

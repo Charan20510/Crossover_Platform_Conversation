@@ -1,15 +1,5 @@
-"""
-Drop the 10 models from the api app's migration state — they now live in
-accounts/whatsapp/mail (adopted in each app's 0001_initial with the same
-db_table, so no data moves). Zero DDL.
-
-Children deleted before parents so no intermediate state has a dangling FK
-reference (e.g. deleting Device while IncomingMessage.device still points at
-'api.device' would raise "lazy reference to api.device").
-"""
 
 from django.db import migrations
-
 
 class Migration(migrations.Migration):
 

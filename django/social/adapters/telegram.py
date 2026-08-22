@@ -1,20 +1,9 @@
-"""
-Telegram adapter — Bot API over plain HTTPS.
-
-No SDK: the whole surface this project needs (sendMessage, setWebhook, getMe)
-is three JSON POSTs, and the project already calls its Node workers with raw
-`requests` (see core/utils.py:call_worker). Pulling in python-telegram-bot
-would add an async event loop to bridge into Django's sync views for zero
-benefit here — skip it unless bot features (inline keyboards, conversation
-state, polling mode) are needed later.
-"""
 
 import requests
 
 from .base import ChannelAdapter
 
 API_BASE = "https://api.telegram.org/bot{token}/{method}"
-
 
 class TelegramAdapter(ChannelAdapter):
     slug = "telegram"
@@ -51,9 +40,6 @@ class TelegramAdapter(ChannelAdapter):
         return {"status": True, "id": str(result["result"]["message_id"])}
 
     def handle_webhook(self, social_account, payload):
-        """payload is one Telegram Update. Returns a dict shaped for
-        SocialMessage.objects.update_or_create(), or None to ignore
-        (e.g. non-message updates like edited_message, callback_query)."""
         message = payload.get("message")
         if not message:
             return None

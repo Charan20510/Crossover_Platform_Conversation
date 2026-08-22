@@ -1,18 +1,9 @@
-"""
-State-only adoption of the WhatsApp models into the whatsapp app.
-
-Zero DDL: every db_table stays as-is (api_device, api_contact, api_message,
-api_messagetemplate, api_autoreply, api_incomingmessage — already created by
-api/migrations/0001_initial.py + 0009), so this migration only rewrites
-Django's migration state, never the database.
-"""
 
 import secrets
 import uuid
 import django.db.models.deletion
 import django.utils.timezone
 from django.db import migrations, models
-
 
 class Migration(migrations.Migration):
 

@@ -1,8 +1,4 @@
 #!/bin/bash
-# ============================================================
-# Development startup script — runs Django + Node worker together
-# Usage:  bash run_dev.sh
-# ============================================================
 
 set -e
 
@@ -10,11 +6,6 @@ echo "============================================"
 echo "  Messaging Platform - Dev Startup"
 echo "============================================"
 
-# ---- Load .env ----
-# Read line-by-line and pass each KEY=value to `export` as a single already-
-# expanded argument, so punctuation in values (the secret key contains
-# # $ * ! %) is never re-parsed as shell syntax the way sourcing the file
-# directly would.
 if [ -f .env ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
@@ -24,7 +15,6 @@ if [ -f .env ]; then
   done < .env
 fi
 
-# ---- Defaults ----
 export DJANGO_DEBUG=${DJANGO_DEBUG:-True}
 export USE_SQLITE=${USE_SQLITE:-true}
 export WORKER_BASE_URL=${WORKER_BASE_URL:-http://localhost:3000}
@@ -35,19 +25,16 @@ export DJANGO_MAIL_WEBHOOK_URL=${DJANGO_MAIL_WEBHOOK_URL:-http://localhost:8000/
 export WORKER_MAIL_PORT=${WORKER_MAIL_PORT:-3002}
 export DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE:-91}
 
-# ---- Check Python ----
 if ! command -v python3 &> /dev/null; then
   echo "ERROR: python3 not found. Install Python 3.12+ first."
   exit 1
 fi
 
-# ---- Check Node ----
 if ! command -v node &> /dev/null; then
   echo "ERROR: node not found. Install Node.js 20+ first."
   exit 1
 fi
 
-# ---- Ensure Postgres is up (skipped when USE_SQLITE=true) ----
 if [ "$(echo "$USE_SQLITE" | tr 'A-Z' 'a-z')" != "true" ]; then
   if ! command -v pg_isready &> /dev/null; then
     echo "ERROR: USE_SQLITE=false but the Postgres client tools aren't installed."
@@ -121,8 +108,6 @@ echo "============================================"
 echo ""
 echo "Press Ctrl+C to stop all services."
 
-# ---- Trap Ctrl+C ----
 trap "echo ''; echo 'Shutting down...'; kill $DJANGO_PID $WORKER_PID $WORKER_MAIL_PID 2>/dev/null; exit 0" INT TERM
 
-# Wait for both processes
 wait

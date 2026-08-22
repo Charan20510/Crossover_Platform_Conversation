@@ -1,10 +1,3 @@
-"""
-Mail client tests — the non-obvious logic only: pagination bounds, thread
-grouping, the (folder, uid) dedup key, and the Delete = Trash / expunge rule.
-
-The worker is never contacted: every test patches `mail.ui_views.call_mail_worker`,
-which is the single seam all IMAP/SMTP traffic goes through.
-"""
 
 import base64
 import json
@@ -19,14 +12,12 @@ from django.utils import timezone
 from accounts.models import Account
 from .models import IncomingEmail, MailAccount, thread_key_for
 
-
 def make_email(box, uid, subject="Hello", folder="INBOX", **kwargs):
     return IncomingEmail.objects.create(
         mail_account=box, uid=str(uid), folder=folder,
         message_id=f"<{uid}@test>", sender="alice@example.com",
         sender_name="Alice", subject=subject,
         received_at=timezone.now(), **kwargs)
-
 
 class MailTestBase(TestCase):
     def setUp(self):
@@ -46,7 +37,6 @@ class MailTestBase(TestCase):
         return self.client.post(reverse(name), data=json.dumps(payload),
                                 content_type="application/json")
 
-
 class ThreadKeyTests(TestCase):
     def test_reply_prefixes_stripped(self):
         for subject in ("Re: Budget", "RE: budget", "Fwd: Re: Budget", "Re[2]: Budget"):
@@ -57,7 +47,6 @@ class ThreadKeyTests(TestCase):
 
     def test_empty_subject(self):
         self.assertEqual(thread_key_for(""), "")
-
 
 class ModelTests(MailTestBase):
     def test_thread_key_computed_on_save(self):
@@ -76,7 +65,6 @@ class ModelTests(MailTestBase):
         make_email(self.box, 7, folder="INBOX")
         with self.assertRaises(IntegrityError):
             make_email(self.box, 7, folder="INBOX")
-
 
 class PaginationTests(MailTestBase):
     def setUp(self):
@@ -113,7 +101,6 @@ class PaginationTests(MailTestBase):
         data = self._list(folder="INBOX", q="Message 42")
         self.assertEqual(data["total"], 1)
 
-
 class ThreadGroupingTests(MailTestBase):
     def setUp(self):
         super().setUp()
@@ -137,9 +124,7 @@ class ThreadGroupingTests(MailTestBase):
         newest = [m for m in data["messages"] if m["thread_key"] == "budget"][0]
         self.assertEqual(newest["uid"], "3")
 
-
 class DeleteRuleTests(MailTestBase):
-    """Delete moves to Trash everywhere; inside Trash it really expunges."""
 
     def test_delete_from_inbox_moves_to_trash(self):
         em = make_email(self.box, 1, folder="INBOX")
@@ -151,7 +136,6 @@ class DeleteRuleTests(MailTestBase):
         path, = [c.args[0] for c in worker.call_args_list]
         self.assertEqual(path, "/move")
         self.assertEqual(worker.call_args.kwargs["data"]["destination"], "Trash")
-        # local row is dropped — UIDs are not preserved across folders
         self.assertFalse(IncomingEmail.objects.filter(id=em.id).exists())
 
     def test_delete_inside_trash_expunges(self):
@@ -183,7 +167,6 @@ class DeleteRuleTests(MailTestBase):
         self.assertFalse(res.json()["status"])
         self.assertTrue(IncomingEmail.objects.filter(id=em.id).exists())
 
-
 class FlagAndMessageTests(MailTestBase):
     def test_opening_a_message_marks_it_seen(self):
         em = make_email(self.box, 1, is_read=False)
@@ -201,7 +184,6 @@ class FlagAndMessageTests(MailTestBase):
         self.assertFalse(IncomingEmail.objects.get(pk=em.pk).is_read)
         self.assertIs(worker.call_args.kwargs["data"]["add"], False)
 
-
 class SyncTests(MailTestBase):
     WORKER_EMAIL = {
         "uid": 12, "messageId": "<a@b>", "subject": "Re: Hello", "from": "bob@example.com",
@@ -217,7 +199,7 @@ class SyncTests(MailTestBase):
             first = self.post_json("mail:sync_folder", {"folder": "INBOX"}).json()
             second = self.post_json("mail:sync_folder", {"folder": "INBOX"}).json()
         self.assertEqual(first["new"], 1)
-        self.assertEqual(second["new"], 0)  # same (folder, uid) -> update, not insert
+        self.assertEqual(second["new"], 0)
         self.assertEqual(IncomingEmail.objects.count(), 1)
         em = IncomingEmail.objects.get()
         self.assertEqual(em.thread_key, "hello")
@@ -236,7 +218,6 @@ class SyncTests(MailTestBase):
         self.assertEqual(self.box.folder_map["trash"], "[Gmail]/Trash")
         self.assertEqual(self.box.folder_path("sent"), "[Gmail]/Sent Mail")
         self.assertTrue(data["status"])
-
 
 class SendTests(MailTestBase):
     def test_reply_builds_threading_headers_and_appends_to_sent(self):
@@ -263,7 +244,7 @@ class SendTests(MailTestBase):
         self.assertEqual(send["subject"], "Re: Budget")
         self.assertEqual(send["inReplyTo"], "<1@test>")
         self.assertIn("<root@x>", send["references"])
-        self.assertIn("> ", send["text"])  # quoted original
+        self.assertIn("> ", send["text"])
 
         append = dict(calls[1][1])
         self.assertEqual(append["folder"], "Sent")
@@ -275,15 +256,12 @@ class SendTests(MailTestBase):
         res = self.post_json("mail:send", {"to": "", "text": "x"})
         self.assertFalse(res.json()["status"])
 
-
 class UnreadFilterTests(MailTestBase):
-    """B4 — the unread filter must be applied server-side, before pagination."""
 
     def setUp(self):
         super().setUp()
         for i in range(5):
             make_email(self.box, i, subject=f"M{i}", is_read=(i % 2 == 0))
-        # 3 read (0,2,4), 2 unread (1,3)
 
     def test_unread_filter_applied_before_pagination(self):
         data = self.client.get(reverse("mail:list"), {"folder": "INBOX", "unread": "1"}).json()
@@ -294,23 +272,21 @@ class UnreadFilterTests(MailTestBase):
         data = self.client.get(reverse("mail:list"), {"folder": "INBOX"}).json()
         self.assertEqual(data["total"], 5)
 
-
 class ThreadExpansionTests(MailTestBase):
     def test_thread_returns_every_message_sharing_the_key(self):
         make_email(self.box, 1, subject="Budget")
         m2 = make_email(self.box, 2, subject="Re: Budget")
         make_email(self.box, 3, subject="Fwd: Budget")
-        make_email(self.box, 4, subject="Lunch")  # different thread
+        make_email(self.box, 4, subject="Lunch")
         data = self.client.get(reverse("mail:thread", args=[m2.id])).json()
         self.assertEqual(len(data["messages"]), 3)
 
     def test_blank_thread_key_does_not_swallow_the_folder(self):
         em = make_email(self.box, 1, subject="")
-        make_email(self.box, 2, subject="")  # also has a blank thread_key
+        make_email(self.box, 2, subject="")
         data = self.client.get(reverse("mail:thread", args=[em.id])).json()
         self.assertEqual(len(data["messages"]), 1)
         self.assertEqual(data["messages"][0]["id"], str(em.id))
-
 
 class AttachmentDownloadTests(MailTestBase):
     def test_download_uses_our_stored_metadata_not_the_workers_echo(self):
@@ -330,7 +306,7 @@ class AttachmentDownloadTests(MailTestBase):
 
     def test_missing_partid_returns_409_re_sync_hint(self):
         em = make_email(self.box, 1, attachments=[
-            {"filename": "old.pdf", "size": 10, "contentType": "application/pdf"}])  # no partId
+            {"filename": "old.pdf", "size": 10, "contentType": "application/pdf"}])
         with patch("mail.ui_views.call_mail_worker") as worker:
             res = self.client.get(reverse("mail:attachment", args=[em.id, 0]))
         self.assertEqual(res.status_code, 409)
@@ -363,7 +339,6 @@ class AttachmentDownloadTests(MailTestBase):
         self.assertEqual(res.status_code, 404)
         worker.assert_not_called()
 
-
 class AttachmentUploadTests(MailTestBase):
     def test_oversize_attachment_rejected_before_worker_is_called(self):
         big = base64.b64encode(b"x" * (11 * 1024 * 1024)).decode()
@@ -394,8 +369,7 @@ class AttachmentUploadTests(MailTestBase):
         self.assertEqual(send["attachments"][0]["filename"], "a.txt")
         self.assertEqual(send["attachments"][0]["content"], content)
         append = dict(calls[1][1])
-        self.assertIn("a.txt", append["raw"])  # attached into the IMAP Sent copy too
-
+        self.assertIn("a.txt", append["raw"])
 
 class DraftRoundTripTests(MailTestBase):
     def test_resaving_a_draft_appends_then_deletes_the_old_one(self):
@@ -424,7 +398,6 @@ class DraftRoundTripTests(MailTestBase):
         self.assertFalse(res.json()["status"])
         self.assertTrue(IncomingEmail.objects.filter(id=old.id).exists())
         self.assertEqual([c.args[0] for c in worker.call_args_list], ["/append"])
-
 
 class AccessTests(MailTestBase):
     def test_views_require_login(self):

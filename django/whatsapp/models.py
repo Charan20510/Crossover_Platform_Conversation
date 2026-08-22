@@ -1,8 +1,3 @@
-"""
-WhatsApp models — Device, Contact, Message, MessageTemplate, AutoReply,
-IncomingMessage. Moved from api/models.py; table names (api_device, ...) are
-unchanged so no DDL runs.
-"""
 
 import uuid
 import secrets
@@ -12,9 +7,7 @@ from django.utils import timezone
 from accounts.models import Account
 from core.choices import CONNECTION_STATUS_CHOICES, SEND_STATUS_CHOICES
 
-
 class Device(models.Model):
-    """A WhatsApp number linked to this gateway. One account -> many devices."""
 
     PACKAGE_CHOICES = [
         ("free", "Free"),
@@ -47,15 +40,12 @@ class Device(models.Model):
 
     @property
     def has_attachment_access(self):
-        """Only super/advanced/ultra packages can send attachments."""
         return self.package in ("super", "advanced", "ultra")
 
     def __str__(self):
         return f"{self.name} ({self.phone_number})"
 
-
 class Contact(models.Model):
-    """Saved contacts for a device."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="contacts")
@@ -71,9 +61,7 @@ class Contact(models.Model):
     def __str__(self):
         return f"{self.name or self.phone}"
 
-
 class Message(models.Model):
-    """Outbound messages (single or bulk)."""
 
     STATUS_CHOICES = SEND_STATUS_CHOICES
 
@@ -96,9 +84,7 @@ class Message(models.Model):
     def __str__(self):
         return f"->{self.target} [{self.status}]"
 
-
 class MessageTemplate(models.Model):
-    """Reusable message templates."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="templates")
@@ -112,9 +98,7 @@ class MessageTemplate(models.Model):
     def __str__(self):
         return self.name
 
-
 class AutoReply(models.Model):
-    """Keyword-based auto-reply rules."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="auto_replies")
@@ -129,14 +113,11 @@ class AutoReply(models.Model):
     def __str__(self):
         return f"{self.keyword} -> {self.reply[:30]}..."
 
-
 class IncomingMessage(models.Model):
-    """Inbound messages received from WhatsApp."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="incoming_messages")
     sender = models.CharField(max_length=64)
-    # Bare digits split out of `sender` — the grouping key that matches Message.target.
     contact = models.CharField(max_length=32, db_index=True, blank=True)
     message = models.TextField()
     name = models.CharField(max_length=255, blank=True)

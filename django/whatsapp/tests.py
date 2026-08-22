@@ -1,4 +1,3 @@
-"""Tests for the chat grouping/merge logic — the only non-trivial bit here."""
 
 import json
 from datetime import timedelta
@@ -13,7 +12,6 @@ from django.contrib.auth.models import User
 
 from .models import Device, IncomingMessage, Message, Contact
 from .ui_views import chat_rows, thread_messages
-
 
 class ChatSelectorTests(TestCase):
     def setUp(self):
@@ -58,7 +56,6 @@ class ChatSelectorTests(TestCase):
         self.assertEqual(rows[0]["last_body"], "ping")
 
     def test_jid_and_digits_group_to_one_contact(self):
-        # sender stored without the JID suffix and contact left blank (pre-backfill row)
         IncomingMessage.objects.create(
             device=self.device, sender="919876543210", message="raw digits",
             received_at=self.t0 + timedelta(minutes=1),
@@ -88,8 +85,6 @@ class ChatSelectorTests(TestCase):
         self.assertEqual([m["body"] for m in msgs], ["new"])
 
     def test_chat_list_uncapped_one_row_per_contact(self):
-        # Chats absorbed Inbox — the old 10-contact cap is gone, one row per
-        # contact regardless of how many are active.
         for i in range(15):
             digits = f"9190000000{i:02d}"
             self._in(digits, f"msg {i}", i)
@@ -100,7 +95,6 @@ class ChatSelectorTests(TestCase):
         contacts = [r["contact"] for r in rows]
         self.assertEqual(len(rows), 15)
         self.assertEqual(len(set(contacts)), 15)
-        # newest first
         self.assertEqual(contacts[0], "9190000000" + "14")
 
     def test_saved_contact_name_outranks_push_name(self):
@@ -137,7 +131,6 @@ class ChatSelectorTests(TestCase):
         )
         rows = chat_rows(self.account, device_id=str(other.id))
         self.assertEqual([r["contact"] for r in rows], ["919555555555"])
-
 
 class ChatViewTests(TestCase):
     def setUp(self):
@@ -182,7 +175,6 @@ class ChatViewTests(TestCase):
         res = self.client.get(reverse("whatsapp:inbox"))
         self.assertRedirects(res, reverse("whatsapp:chats"))
 
-
 class ChatUploadTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("u3", password="pw12345!")
@@ -217,9 +209,7 @@ class ChatUploadTests(TestCase):
         self.assertTrue(data["url"].startswith("http"))
         self.assertEqual(data["filename"], "a.txt")
 
-
 class HistorySyncWebhookTests(TestCase):
-    """webhook_receiver's history_sync / direction-aware incoming_message handling."""
 
     def setUp(self):
         self.user = User.objects.create_user("u4", password="pw12345!")
@@ -271,11 +261,10 @@ class HistorySyncWebhookTests(TestCase):
             ],
         }
         self._post(payload)
-        self._post(payload)  # replay — must not duplicate
+        self._post(payload)
         self.assertEqual(IncomingMessage.objects.filter(inbox_id="WAIN2").count(), 1)
 
     def test_incoming_message_direction_out_routes_to_message(self):
-        # Live event for a message the user sent from their phone (fromMe).
         payload = {
             "event": "incoming_message", "deviceId": str(self.device.id),
             "sender": "919876543210@s.whatsapp.net", "direction": "out",
@@ -292,7 +281,7 @@ class HistorySyncWebhookTests(TestCase):
             "deviceId": str(self.device.id),
             "contacts": [
                 {"jid": "919876543210@s.whatsapp.net", "name": "Alice"},
-                {"jid": "919111111111@s.whatsapp.net", "name": ""},  # no usable name — skipped
+                {"jid": "919111111111@s.whatsapp.net", "name": ""},
             ],
         }
         self._post(payload)
@@ -300,7 +289,6 @@ class HistorySyncWebhookTests(TestCase):
         self.assertEqual(contact.name, "Alice")
         self.assertFalse(Contact.objects.filter(device=self.device, phone="919111111111").exists())
 
-        # a later sync updates the same row rather than duplicating it
         payload["contacts"] = [{"jid": "919876543210@s.whatsapp.net", "name": "Alice W."}]
         self._post(payload)
         self.assertEqual(
@@ -309,7 +297,6 @@ class HistorySyncWebhookTests(TestCase):
         self.assertEqual(
             Contact.objects.get(device=self.device, phone="919876543210").name, "Alice W."
         )
-
 
 class ChatsSyncViewTests(TestCase):
     def setUp(self):
@@ -347,7 +334,6 @@ class ChatsSyncViewTests(TestCase):
         res = self.client.post(reverse("whatsapp:chats_sync"), {"device": str(self.device.id)})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["chats"], 0)
-
 
 class ChatsViewDeviceFilterTests(TestCase):
     def setUp(self):

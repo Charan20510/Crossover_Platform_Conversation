@@ -11,7 +11,6 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" class="profile-grid">
 
-  <!-- personal details -->
   <div class="card">
     <div class="card-title">Personal Details</div>
 
@@ -43,7 +42,6 @@
     </div>
   </div>
 
-  <!-- API token -->
   <div class="card">
     <div class="card-title">API Credentials</div>
 
@@ -77,7 +75,7 @@
 
 {% block extra_js %}
 <script>
-/* make profile grid single-column on narrow screens */
+
 const grid = document.querySelector('.profile-grid');
 if (grid && window.innerWidth < 700) grid.style.gridTemplateColumns = '1fr';
 </script>

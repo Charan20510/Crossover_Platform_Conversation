@@ -1,9 +1,3 @@
-/* ============================================================
-   Mail client — Roundcube Elastic-style shell.
-   Dark by default; [data-theme="light"] remaps the same token
-   NAMES core/style.css uses, so the two sheets stay one system.
-   Loaded after core/style.css, which supplies toast/button basics.
-   ============================================================ */
 
 :root, [data-theme="dark"] {
   --bg:         #16191d;
@@ -57,7 +51,6 @@
 .rc-shell:has(.rc-wide)     { grid-template-columns: var(--rc-rail-w) 1fr; }
 .rc-shell:has(.rc-empty-state) { grid-template-columns: var(--rc-rail-w) 1fr; }
 
-/* ── icon rail ───────────────────────────────────────────── */
 .rc-rail {
   background: var(--rail);
   display: flex;
@@ -92,7 +85,6 @@
 .rc-rail-item:hover { color: #fff; background: rgba(255,255,255,.05); text-decoration: none; }
 .rc-rail-item.active { color: #fff; border-left-color: var(--accent-hover); background: rgba(255,255,255,.06); }
 
-/* ── folder column ───────────────────────────────────────── */
 .rc-folders, .rc-list, .rc-pane, .rc-wide {
   border-left: 1px solid var(--line);
   display: flex; flex-direction: column;
@@ -134,7 +126,6 @@
   font: inherit;
 }
 
-/* ── toolbars ────────────────────────────────────────────── */
 .rc-toolbar {
   height: 46px; flex: none;
   display: flex; align-items: center; gap: 2px;
@@ -185,7 +176,6 @@
 }
 .rc-options select { width: auto; }
 
-/* ── message list ────────────────────────────────────────── */
 .rc-rows { list-style: none; flex: 1; overflow-y: auto; }
 .rc-loading { padding: 22px 16px; color: var(--muted); font-size: .85rem; }
 .rc-row {
@@ -217,7 +207,6 @@
   font-size: .76rem; color: var(--muted);
 }
 
-/* ── reading pane ────────────────────────────────────────── */
 .rc-pane-body { flex: 1; overflow-y: auto; }
 .rc-splash {
   height: 100%; display: flex; flex-direction: column;
@@ -245,7 +234,6 @@
 .rc-msg-body pre { white-space: pre-wrap; word-break: break-word; font: inherit; }
 .rc-msg-frame { width: 100%; min-height: 60vh; border: 0; background: #fff; border-radius: 6px; }
 
-/* ── wide pages (contacts / settings) ────────────────────── */
 .rc-wide { overflow-y: auto; padding-bottom: 40px; }
 .rc-wide .rc-search { max-width: 420px; border-bottom: 0; }
 .rc-note { padding: 0 16px 12px; font-size: .8rem; }
@@ -275,7 +263,6 @@
 .rc-contacts .rc-row-date { grid-area: date; }
 .rc-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
 
-/* ── buttons / modals ────────────────────────────────────── */
 .rc-btn {
   background: var(--surface-2); border: 1px solid var(--line);
   color: var(--ink); font: inherit; font-size: .78rem;

@@ -1,6 +1,3 @@
-"""
-Unified section URL routing — mounted at /app/ (the landing section).
-"""
 
 from django.urls import path
 from . import ui_views

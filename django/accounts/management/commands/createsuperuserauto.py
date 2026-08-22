@@ -1,19 +1,12 @@
-"""
-Management command: createsuperuserauto
-Creates a default superuser automatically (for dev / first-run).
-Usage: python manage.py createsuperuserauto
-"""
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from accounts.models import Account
 
-
 class Command(BaseCommand):
     help = "Create a default superuser and a demo account automatically."
 
     def handle(self, *args, **options):
-        # Create superuser
         if not User.objects.filter(username="admin").exists():
             User.objects.create_superuser(
                 username="admin",
@@ -24,7 +17,6 @@ class Command(BaseCommand):
         else:
             self.stdout.write("Superuser 'admin' already exists.")
 
-        # Create demo account
         if not Account.objects.filter(email="demo@wa-gateway.local").exists():
             account = Account.objects.create(
                 name="Demo Account",
@@ -36,9 +28,8 @@ class Command(BaseCommand):
         else:
             self.stdout.write("Demo account already exists.")
 
-        # Create demo device
         if not Account.objects.filter(email="demo@wa-gateway.local").exists():
-            pass  # already handled above
+            pass
         else:
             account = Account.objects.get(email="demo@wa-gateway.local")
             if account.devices.count() == 0:

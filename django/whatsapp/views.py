@@ -1,7 +1,3 @@
-"""
-API views — Fonnte-compatible Messaging Platform endpoints.
-Moved from api/views.py; URL paths are unchanged (see whatsapp/api_urls.py).
-"""
 
 import json
 import logging
@@ -24,28 +20,14 @@ from core.utils import (
     call_worker, generate_token,
 )
 
-
-# ============================================================
-# HEALTH
-# ============================================================
 @csrf_exempt
 @require_http_methods(["GET"])
 def health(request):
     return JsonResponse({"status": "ok", "service": "wa_gateway"})
 
-
-# ============================================================
-# DEVICE CONNECTION
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def get_qr(request):
-    """
-    POST /qr
-    Get QR code or pairing code to link a WhatsApp device.
-    Body: { "type": "qr" | "code" | "qr-passkey", "whatsapp": "91XXXXXXXXXX" }
-    Auth: device token
-    """
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -72,15 +54,9 @@ def get_qr(request):
         logger.error("Worker error: %s", e)
         return JsonResponse({"status": False, "reason": "worker unreachable"})
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def disconnect_device(request):
-    """
-    POST /disconnect
-    Disconnect the linked WhatsApp device.
-    Auth: device token
-    """
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -94,15 +70,9 @@ def disconnect_device(request):
     device.save()
     return JsonResponse({"status": True, "reason": "device disconnected"})
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def delete_device(request):
-    """
-    POST /delete-device
-    Disconnect and permanently delete a device.
-    Auth: device token
-    """
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -115,23 +85,9 @@ def delete_device(request):
     device.delete()
     return JsonResponse({"status": True, "reason": "device deleted"})
 
-
-# ============================================================
-# SEND MESSAGE
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def send_message(request):
-    """
-    POST /send
-    Send a WhatsApp message (single or bulk).
-
-    Required: target (comma-separated numbers, supports |variables)
-    Optional: message, url, file, schedule, delay, countryCode,
-              location, typing, followup, inboxid, preview, etc.
-
-    Auth: device token
-    """
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -139,7 +95,6 @@ def send_message(request):
     if device.status != "connect":
         return JsonResponse({"status": False, "reason": "device not connected — scan QR first"})
 
-    # Parse body from either JSON or form-data
     body = {}
     if request.content_type and "application/json" in request.content_type:
         body = json.loads(request.body) if request.body else {}
@@ -159,7 +114,6 @@ def send_message(request):
     inboxid = body.get("inboxid", "0")
     preview = body.get("preview", "true") == "true"
 
-    # Attachment checks
     url = body.get("url", "")
     file = request.FILES.get("file")
     if (url or file) and not device.has_attachment_access:
@@ -168,12 +122,10 @@ def send_message(request):
             "reason": "attachment requires super/advanced/ultra package"
         })
 
-    # Quota check
     targets = parse_targets(target_str)
     if device.quota < len(targets):
         return JsonResponse({"status": False, "reason": "insufficient quota"})
 
-    # Create message records + enqueue to worker
     message_ids = []
     target_numbers = []
 
@@ -195,7 +147,6 @@ def send_message(request):
         message_ids.append(str(msg.id))
         target_numbers.append(normalized)
 
-        # Enqueue to Node.js worker
         worker_payload = {
             "deviceId": str(device.id),
             "phoneNumber": device.phone_number,
@@ -212,7 +163,6 @@ def send_message(request):
         }
 
         if file:
-            # In production: upload file to S3, pass URL to worker
             worker_payload["fileUrl"] = "uploaded_file_url_placeholder"
 
         try:
@@ -227,7 +177,6 @@ def send_message(request):
             logger.error("Worker unreachable: %s", e)
             return JsonResponse({"status": False, "reason": "worker unreachable"})
 
-    # Decrement quota
     device.quota -= len(targets)
     device.messages_sent += len(targets)
     device.save()
@@ -239,19 +188,9 @@ def send_message(request):
         "process": "process",
     })
 
-
-# ============================================================
-# VALIDATE NUMBER
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def validate_number(request):
-    """
-    POST /validate
-    Check if numbers are registered on WhatsApp.
-    Body: { "target": "91xxx,91yyy", "countryCode": "91" }
-    Auth: device token
-    """
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -275,18 +214,9 @@ def validate_number(request):
         logger.error("Worker error: %s", e)
         return JsonResponse({"status": False, "reason": "worker unreachable"})
 
-
-# ============================================================
-# DEVICE PROFILE
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def device_profile(request):
-    """
-    POST /device
-    Get device information (status, quota, package).
-    Auth: device token
-    """
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -302,19 +232,9 @@ def device_profile(request):
         "quota": device.quota,
     })
 
-
-# ============================================================
-# ADD DEVICE (Account-level)
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def add_device(request):
-    """
-    POST /add-device
-    Create a new device programmatically.
-    Body: { "name": "My Device", "device": "91XXXXXXXXXX", "autoread": false }
-    Auth: account token
-    """
     account = get_account_from_token(request)
     if not account:
         return JsonResponse({"status": False, "reason": "account token invalid"}, status=401)
@@ -326,12 +246,10 @@ def add_device(request):
     if not name or not phone:
         return JsonResponse({"status": False, "reason": "name and device required"})
 
-    # Check free device limit
     free_devices = account.devices.filter(package="free").count()
     if free_devices >= 10:
         return JsonResponse({"status": False, "reason": "too much free device"})
 
-    # Check uniqueness
     if Device.objects.filter(phone_number=phone).exists():
         return JsonResponse({"status": False, "reason": "device already exist"})
 
@@ -354,14 +272,9 @@ def add_device(request):
         "package": "free",
     })
 
-
-# ============================================================
-# DELETE MESSAGE / RESCHEDULE
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def delete_message(request):
-    """POST /delete-message — Cancel a queued message."""
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -381,11 +294,9 @@ def delete_message(request):
     except Message.DoesNotExist:
         return JsonResponse({"status": False, "reason": "message not found"})
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def reschedule(request):
-    """POST /reschedule — Change schedule/delay of a pending message."""
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -408,14 +319,9 @@ def reschedule(request):
     except Message.DoesNotExist:
         return JsonResponse({"status": False, "reason": "message not found"})
 
-
-# ============================================================
-# TYPING INDICATOR
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def typing(request):
-    """POST /typing — Trigger a typing indicator."""
     device = get_device_from_token(request)
     if not device:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -435,21 +341,9 @@ def typing(request):
         logger.error("Error: %s", e)
         return JsonResponse({"status": False, "reason": "internal error"})
 
-
-# ============================================================
-# WEBHOOK RECEIVER (from Node.js worker)
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def webhook_receiver(request):
-    """
-    Internal endpoint: receives events from the Node.js Baileys worker.
-    - Incoming messages
-    - Message status updates
-    - Device status changes
-
-    This endpoint is called BY the worker, not by the API user.
-    """
     body = json.loads(request.body) if request.body else {}
     event_type = body.get("event", "")
     device_id = body.get("deviceId", "")
@@ -460,29 +354,20 @@ def webhook_receiver(request):
         return JsonResponse({"status": False, "reason": "device not found"})
 
     if event_type == "incoming_message":
-        # Live message from the worker (either inbound, or fromMe from the
-        # linked phone — see `direction`). Routes to IncomingMessage/Message
-        # via the same helper history_sync uses below.
         _store_wa_message(device, body)
 
-        # Forward to user's webhook if configured
         if device.webhook_url:
             forward_webhook(device.webhook_url, body)
 
-        # Check auto-reply rules (inbound only)
         if device.autoread and body.get("direction", "in") != "out":
             _check_auto_reply(device, body)
 
     elif event_type == "history_sync":
-        # Batched backfill from messaging-history.set. Each item can't be
-        # deduped without a WhatsApp message id, so those are skipped.
         for item in body.get("messages", []):
             if item.get("id") or item.get("inboxid"):
                 _store_wa_message(device, item)
 
     elif event_type == "contacts_sync":
-        # Address-book names synced from the linked phone — lets the Chats UI
-        # show a saved name instead of a bare number.
         for c in body.get("contacts", []):
             phone = contact_key(c.get("jid", ""))
             name = c.get("name", "").strip()
@@ -516,7 +401,6 @@ def webhook_receiver(request):
             pass
 
     elif event_type == "message_status_by_uuid":
-        # Used by the worker's retry queue to update status via Django UUID
         msg_id = body.get("id", "")
         try:
             msg = Message.objects.get(id=msg_id, device=device)
@@ -539,15 +423,7 @@ def webhook_receiver(request):
 
     return JsonResponse({"status": True})
 
-
 def _store_wa_message(device, item):
-    """Persist one worker message dict into IncomingMessage or Message.
-
-    Accepts both the live 'incoming_message' shape (sender/inboxid) and the
-    batched 'history_sync' item shape (jid/id) from the worker's shared
-    mapWaMessage(). Deduped on the WhatsApp message id where one is present,
-    so replaying a sync (or a live event racing a backfill) is a no-op.
-    """
     jid = item.get("sender") or item.get("jid") or ""
     contact = contact_key(jid)
     if not contact:
@@ -588,35 +464,27 @@ def _store_wa_message(device, item):
     else:
         IncomingMessage.objects.create(device=device, inbox_id=None, **defaults)
 
-
 def forward_webhook(url, payload):
-    """Forward webhook payload to user's URL."""
     try:
         import requests
         requests.post(url, json=payload, timeout=10)
     except Exception:
         pass
 
-
 def _check_auto_reply(device, body):
-    """Check if an incoming message matches an auto-reply rule."""
     incoming_text = body.get("message", "").lower().strip()
     sender_jid = body.get("sender", "")
 
-    # Check keyword rules
     for rule in device.auto_replies.all():
         if rule.keyword.lower() in incoming_text:
             _send_auto_reply(device, sender_jid, rule.reply)
             return
 
-    # Check default rule
     default_rule = device.auto_replies.filter(is_default=True).first()
     if default_rule:
         _send_auto_reply(device, sender_jid, default_rule.reply)
 
-
 def _send_auto_reply(device, sender_jid, reply_text):
-    """Send an auto-reply through the worker."""
     try:
         call_worker("/enqueue-send", data={
             "deviceId": str(device.id),

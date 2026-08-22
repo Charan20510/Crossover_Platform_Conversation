@@ -1,11 +1,3 @@
-"""
-Mail browser UI URL routing — mounted at /app/mail/.
-
-The Roundcube-style client lives at `client/`; the old Inbox / Sent / Compose /
-Accounts pages are gone and their names now redirect into it, so existing
-`{% url %}` references (and the topbar bell, via core.context_processors)
-keep resolving.
-"""
 
 from django.urls import path
 from django.views.generic import RedirectView
@@ -17,7 +9,6 @@ app_name = "mail"
 urlpatterns = [
     path("",             ui_views.mail_dashboard, name="dashboard"),
 
-    # client
     path("client/",           ui_views.mail_client,       name="client"),
     path("list/",             ui_views.mail_list,         name="list"),
     path("message/<uuid:pk>/", ui_views.mail_message,     name="message"),
@@ -34,7 +25,6 @@ urlpatterns = [
     path("contacts/",         ui_views.mail_contacts,     name="contacts"),
     path("settings/",         ui_views.mail_settings,     name="settings"),
 
-    # superseded pages
     path("inbox/",    RedirectView.as_view(pattern_name="mail:client"),   name="inbox"),
     path("sent/",     RedirectView.as_view(pattern_name="mail:client"),   name="sent"),
     path("compose/",  RedirectView.as_view(pattern_name="mail:client"),   name="compose"),

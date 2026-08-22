@@ -1,18 +1,9 @@
-"""
-State-only adoption of the Mail models into the mail app.
-
-Zero DDL: every db_table stays as-is (api_mailaccount, api_email,
-api_incomingemail — already created by
-api/migrations/0027_alter_device_device_token_mailaccount_email_and_more.py),
-so this migration only rewrites Django's migration state, never the database.
-"""
 
 import secrets
 import uuid
 import django.db.models.deletion
 import django.utils.timezone
 from django.db import migrations, models
-
 
 class Migration(migrations.Migration):
 

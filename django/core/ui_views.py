@@ -1,10 +1,3 @@
-"""
-Cross-channel UI views — unified overview, all-inbox, and the notification
-bell feed. These are the only views that read both whatsapp and mail models,
-which is why they live in core rather than in either feature app (keeps the
-dependency direction one-way: whatsapp/mail never import each other or core's
-UI code, only core imports them).
-"""
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -21,7 +14,6 @@ CONTACT_FIELDS = [
     "name", "company", "notes", "whatsapp", "mobile", "email",
     "instagram", "facebook", "x", "linkedin", "slack", "gbp", "telegram",
 ]
-
 
 @login_required
 def overview(request):
@@ -81,10 +73,8 @@ def overview(request):
         "recent_activity": recent_activity,
     })
 
-
 @login_required
 def all_inbox(request):
-    """Merged WhatsApp + mail inbox — the Unified section's inbox page."""
     account = get_account(request)
     device_ids = list(account.devices.values_list("id", flat=True))
     mail_ids = list(account.mail_accounts.values_list("id", flat=True))
@@ -113,7 +103,6 @@ def all_inbox(request):
         "account": account,
         "items": items,
     })
-
 
 @login_required
 def notifications_feed(request):
@@ -154,10 +143,8 @@ def notifications_feed(request):
 
     return JsonResponse({"count": count, "latest": latest})
 
-
 @login_required
 def contacts(request):
-    """Unified client profiles — one row per person, every channel ID."""
     account = get_account(request)
 
     if request.method == "POST":
@@ -201,10 +188,8 @@ def contacts(request):
         "default_cc": settings.DEFAULT_COUNTRY_CODE,
     })
 
-
 @login_required
 def contacts_search(request):
-    """Type-ahead backend for the WhatsApp Chats and Mail compose search bars."""
     account = get_account(request)
     q = request.GET.get("q", "").strip()
     results = []

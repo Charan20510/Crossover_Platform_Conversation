@@ -1,23 +1,5 @@
 'use strict';
 
-/**
- * Mail Gateway Worker — Express HTTP server
- *
- * This Node.js microservice handles email operations using:
- *   - ImapFlow  → fetch emails, list folders (IMAP)
- *   - Nodemailer → send emails (SMTP)
- *
- * The Django backend calls this worker's HTTP endpoints to:
- *   - Connect / test IMAP connections
- *   - Send emails via SMTP
- *   - Fetch emails from folders
- *   - List IMAP folders
- *   - Search emails
- *
- * This is the "Baileys equivalent for email" — a thin protocol layer
- * that Django talks to over HTTP, exactly like the WhatsApp worker pattern.
- */
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -34,7 +16,6 @@ app.use(cors({ origin: true, credentials: true }));
 const PORT = process.env.WORKER_MAIL_PORT || 3002;
 const DJANGO_WEBHOOK_URL = process.env.DJANGO_WEBHOOK_URL || 'http://localhost:8000/webhook/mail';
 
-// Simple token auth (matches the mail account token from Django)
 function authMiddleware(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
@@ -45,8 +26,6 @@ function authMiddleware(req, res, next) {
   next();
 }
 
-// Connect, run fn(client), always log out. Every IMAP endpoint below shares
-// this so credential handling and cleanup live in exactly one place.
 async function withImap(body, folder, fn) {
   const { imapHost, imapPort, imapSecure, username, password } = body;
   if (!imapHost || !username) {
@@ -77,10 +56,6 @@ async function withImap(body, folder, fn) {
   }
 }
 
-// Flatten a bodyStructure tree into attachment metadata (no bytes). Includes
-// the IMAP part id (node.part) — the only addressable handle for a later
-// `client.download(uid, partId)` — which simpleParser's attachment list does
-// not carry.
 function collectAttachments(node, out = []) {
   if (!node) return out;
   if (node.disposition === 'attachment' || (node.dispositionParameters && node.dispositionParameters.filename)) {
@@ -96,18 +71,12 @@ function collectAttachments(node, out = []) {
   return out;
 }
 
-// ============================================================
-// HEALTH (public)
-// ============================================================
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'mail-gateway-worker' });
 });
 
 app.use(authMiddleware);
 
-// ============================================================
-// CONNECT / TEST IMAP CONNECTION
-// ============================================================
 app.post('/connect', async (req, res) => {
   const { accountId, imapHost, imapPort, imapSecure, username, password } = req.body;
 
@@ -131,7 +100,6 @@ app.post('/connect', async (req, res) => {
     await client.mailboxClose();
     await client.logout();
 
-    // Notify Django of connection success
     try {
       await axios.post(DJANGO_WEBHOOK_URL, {
         event: 'account_status',
@@ -146,7 +114,6 @@ app.post('/connect', async (req, res) => {
       inbox: { total: status.messages, unseen: status.unseen },
     });
   } catch (e) {
-    // Notify Django of connection failure
     try {
       await axios.post(DJANGO_WEBHOOK_URL, {
         event: 'account_status',
@@ -160,9 +127,6 @@ app.post('/connect', async (req, res) => {
   }
 });
 
-// ============================================================
-// SEND EMAIL (SMTP via Nodemailer)
-// ============================================================
 app.post('/send', async (req, res) => {
   const {
     from, to, cc, bcc, subject, text, html, attachments, inReplyTo, references,
@@ -191,7 +155,6 @@ app.post('/send', async (req, res) => {
       html: html || '',
       attachments: attachments || [],
     };
-    // threading headers (reply / reply-all)
     if (inReplyTo) mailOptions.inReplyTo = inReplyTo;
     if (references) mailOptions.references = references;
 
@@ -207,9 +170,6 @@ app.post('/send', async (req, res) => {
   }
 });
 
-// ============================================================
-// FETCH EMAILS (IMAP via ImapFlow)
-// ============================================================
 app.post('/fetch', async (req, res) => {
   const { accountId, folder, limit, offset, unseen, search, notify } = req.body;
   const mailbox = folder || 'INBOX';
@@ -224,7 +184,6 @@ app.post('/fetch', async (req, res) => {
       const uids = await client.search(searchCriteria, { uid: true }) || [];
       const fetchLimit = Math.min(limit || 50, 200);
       const start = Math.max(offset || 0, 0);
-      // uids come back ascending; newest first, then page from `offset`.
       const uidsToFetch = uids.slice().reverse().slice(start, start + fetchLimit);
 
       const emails = [];
@@ -248,10 +207,8 @@ app.post('/fetch', async (req, res) => {
             bodyHtml = parsed.html || '';
             references = Array.isArray(parsed.references)
               ? parsed.references.join(' ') : (parsed.references || '');
-          } catch (_) { /* unparseable body — headers are still useful */ }
+          } catch (_) { }
         }
-        // Always sourced from bodyStructure, not simpleParser's attachment
-        // list — only bodyStructure carries a usable IMAP part id.
         const attachments = collectAttachments(msg.bodyStructure);
 
         emails.push({
@@ -281,8 +238,6 @@ app.post('/fetch', async (req, res) => {
       return { total: uids.length, emails };
     });
 
-    // Legacy webhook push (the token API's /mail/sync relies on it). The new
-    // session views pass notify:false and upsert from the response instead.
     if (notify !== false) {
       for (const em of out.emails) {
         if (em.isRead) continue;
@@ -311,9 +266,6 @@ app.post('/fetch', async (req, res) => {
   }
 });
 
-// ============================================================
-// FLAG / UNFLAG (\Seen, \Flagged, \Answered, \Draft)
-// ============================================================
 app.post('/flag', async (req, res) => {
   const { folder, uids, flags, add } = req.body;
   if (!Array.isArray(uids) || !uids.length || !Array.isArray(flags) || !flags.length) {
@@ -332,9 +284,6 @@ app.post('/flag', async (req, res) => {
   }
 });
 
-// ============================================================
-// MOVE (drives Delete -> Trash, Junk, Archive)
-// ============================================================
 app.post('/move', async (req, res) => {
   const { folder, uids, destination } = req.body;
   if (!Array.isArray(uids) || !uids.length || !destination) {
@@ -349,9 +298,6 @@ app.post('/move', async (req, res) => {
   }
 });
 
-// ============================================================
-// DELETE / EXPUNGE (only used to empty Trash)
-// ============================================================
 app.post('/delete', async (req, res) => {
   const { folder, uids } = req.body;
   if (!Array.isArray(uids) || !uids.length) {
@@ -366,9 +312,6 @@ app.post('/delete', async (req, res) => {
   }
 });
 
-// ============================================================
-// APPEND (save draft / copy outbound mail into Sent)
-// ============================================================
 app.post('/append', async (req, res) => {
   const { folder, raw, flags } = req.body;
   if (!folder || !raw) {
@@ -383,9 +326,6 @@ app.post('/append', async (req, res) => {
   }
 });
 
-// ============================================================
-// DOWNLOAD ONE ATTACHMENT (by IMAP part id from collectAttachments)
-// ============================================================
 app.post('/attachment', async (req, res) => {
   const { folder, uid, partId, maxBytes } = req.body;
   if (!uid || !partId) {
@@ -425,16 +365,11 @@ app.post('/attachment', async (req, res) => {
   }
 });
 
-// ============================================================
-// LIST IMAP FOLDERS
-// ============================================================
 app.post('/folders', async (req, res) => {
   try {
     const folders = await withImap(req.body, null, async (client) => {
       const out = [];
       for (const folder of await client.list()) {
-        // ponytail: one STATUS round-trip per folder. Fine for a handful of
-        // mailboxes; batch/cache it if someone has a hundred.
         let counts = {};
         try {
           counts = await client.status(folder.path, { messages: true, unseen: true });
@@ -457,9 +392,6 @@ app.post('/folders', async (req, res) => {
   }
 });
 
-// ============================================================
-// START SERVER
-// ============================================================
 app.listen(PORT, () => {
   console.log('========================================');
   console.log('  Mail Gateway Worker (ImapFlow + Nodemailer)');
@@ -468,7 +400,6 @@ app.listen(PORT, () => {
   console.log('========================================');
 });
 
-// Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nShutting down mail worker...');
   process.exit(0);

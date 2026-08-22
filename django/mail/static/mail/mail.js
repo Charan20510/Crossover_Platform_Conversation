@@ -1,9 +1,3 @@
-/* ============================================================
-   Mail client — Roundcube-style shell driver.
-   Vanilla ES6 + fetch. Every mutation is a session-authenticated,
-   CSRF'd POST to a mail: view; the DOM is patched, never reloaded.
-   Depends on Toast from core/core.js (loaded first).
-   ============================================================ */
 
 'use strict';
 
@@ -11,7 +5,6 @@
   const U = window.MAIL_URLS || {};
   const $ = (sel, root = document) => root.querySelector(sel);
 
-  // ── CSRF (Django's documented cookie + header pattern) ──────
   function getCookie(name) {
     const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
     return match ? decodeURIComponent(match[2]) : '';
@@ -52,7 +45,6 @@
       : d.toLocaleDateString([], { year: 'numeric', month: 'short', day: '2-digit' });
   }
 
-  // ── theme (works on every mail page) ────────────────────────
   function applyThemeLabel() {
     const dark = document.documentElement.getAttribute('data-theme') !== 'light';
     document.querySelectorAll('[data-theme-label]').forEach(el => {
@@ -67,7 +59,6 @@
   }
   applyThemeLabel();
 
-  // ── compose modal (available on every mail page) ────────────
   const composeModal = $('#rc-compose');
   const composeForm = $('#rc-compose-form');
 
@@ -82,20 +73,17 @@
     f.bcc.value = '';
     f.subject.value = opts.subject || '';
     f.text.value = opts.text || '';
-    if (f.attachments) f.attachments.value = '';  // clear any prior selection
+    if (f.attachments) f.attachments.value = '';
     $('#rc-compose-title').textContent = opts.title || 'New message';
     composeModal.classList.remove('hidden');
     f.to.focus();
   }
   const closeCompose = () => composeModal && composeModal.classList.add('hidden');
 
-  // contact profile type-ahead on "To" — pick a profile to fill their email
   contactSearch($('#rc-compose-to'), (c) => {
     if (c.email && composeForm) composeForm.to.value = c.email;
   });
 
-  // matches MAX_ATTACHMENT_BYTES / MAX_ATTACHMENTS_TOTAL_BYTES in ui_views.py —
-  // client-side only for a fast UX rejection; the server re-checks for real.
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_TOTAL_BYTES = 25 * 1024 * 1024;
 
@@ -138,7 +126,7 @@
       draft_id: f.draft_id.value,
       to: f.to.value, cc: f.cc.value, bcc: f.bcc.value,
       subject: f.subject.value, text: f.text.value,
-      quote: false,  // the quoted body is already in the textarea
+      quote: false,
       attachments,
     };
   }
@@ -161,9 +149,6 @@
     });
   }
 
-  // ============================================================
-  // client state (only meaningful on the client page)
-  // ============================================================
   const listEl = $('#rc-list');
   const rowsEl = $('#rc-rows');
   const paneBody = $('#rc-pane-body');
@@ -173,8 +158,8 @@
     page: 1, pages: 1, q: '', threads: false, unreadOnly: false,
     selectMode: false, selected: new Set(),
     messages: [], open: null,
-    draftsPath: null,           // path of the Drafts folder, from folder_list's kind
-    expandedThreads: new Set(), // ids whose child rows are currently shown
+    draftsPath: null,
+    expandedThreads: new Set(),
   };
 
   function rowHTML(m, child, parentId) {
@@ -291,7 +276,6 @@
         <span class="rc-muted">${Math.max(1, Math.round((a.size || 0) / 1024))} KB</span></a>`).join('');
 
     const body = m.body_html
-      // sandboxed with no allow-scripts: remote HTML mail cannot execute here.
       ? `<iframe class="rc-msg-frame" sandbox referrerpolicy="no-referrer"
            srcdoc="${esc(m.body_html)}"></iframe>`
       : `<pre>${esc(m.body_text || '(empty message)')}</pre>`;
@@ -310,12 +294,10 @@
       ${attachments ? `<div class="rc-attachments">${attachments}</div>` : ''}
       <div class="rc-msg-body">${body}</div>`;
 
-    // the row is read now — patch it instead of reloading the list
     const row = rowsEl && rowsEl.querySelector(`.rc-row[data-id="${m.id}"]`);
     if (row) row.classList.remove('unread');
   }
 
-  // ── selection helpers ──────────────────────────────────────
   function targetIds() {
     if (state.selected.size) return Array.from(state.selected);
     return state.open ? [state.open] : [];
@@ -376,9 +358,6 @@
     };
   }
 
-  // ============================================================
-  // delegated handlers — one listener covers dynamic rows too
-  // ============================================================
   document.addEventListener('click', async (e) => {
     const star = e.target.closest('[data-star]');
     if (star) {
@@ -416,7 +395,7 @@
       if (paneBody) paneBody.innerHTML = '<div class="rc-splash"><p>Select a message to read it.</p></div>';
       history.replaceState(null, '', `?folder=${encodeURIComponent(state.folder)}`);
       await loadList();
-      syncFolder();  // background top-up from IMAP
+      syncFolder();
       return;
     }
 
@@ -505,7 +484,6 @@
         break;
       }
 
-      // ── settings page ────────────────────────────────────
       case 'mailbox-select': {
         const data = await post(U.settings, { action: 'select', mail_account: btn.dataset.id });
         data.status ? location.reload() : Toast.err(data.reason || 'Failed.');
@@ -528,7 +506,6 @@
     }
   });
 
-  // ── search (debounced) ─────────────────────────────────────
   const search = $('#rc-search');
   if (search) {
     let timer;
@@ -542,7 +519,6 @@
     });
   }
 
-  // ── options / mailbox pickers ──────────────────────────────
   const pageSize = $('#rc-page-size');
   if (pageSize) {
     pageSize.addEventListener('change', async () => {
@@ -580,7 +556,6 @@
     location.reload();
   });
 
-  // ── add-mailbox form (settings) ────────────────────────────
   const mailboxForm = $('#rc-mailbox-form');
   if (mailboxForm) {
     mailboxForm.addEventListener('submit', async (e) => {
@@ -595,7 +570,6 @@
     });
   }
 
-  // ── IMAP sync + poll ───────────────────────────────────────
   async function syncFolder(limit) {
     const data = await post(U.sync, { folder: state.folder, limit: limit || undefined });
     if (!data.status) { Toast.err(data.reason || 'Sync failed.'); return data; }
@@ -603,8 +577,6 @@
     return data;
   }
 
-  // ponytail: 30s poll instead of IMAP IDLE — swap in a worker-side IDLE
-  // push if this gets too chatty.
   if (listEl) {
     (async () => {
       await loadList();

@@ -1,9 +1,5 @@
 {% load nav %}
-{% comment %}
-  The Mail client has its own full-screen shell (mail/base_mail.html) with an
-  icon rail; this sidebar only serves the platform-chrome pages that remain,
-  i.e. the Mail stats dashboard.
-{% endcomment %}
+
 <div class="nav-section">Mail</div>
 <a href="{% url 'mail:dashboard' %}" class="nav-item {% nav_active_url 'mail:dashboard' exact=True %}">
   <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>

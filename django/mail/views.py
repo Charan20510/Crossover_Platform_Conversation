@@ -1,10 +1,3 @@
-"""
-Mail API views — same conventions as whatsapp/views.py, mirrored for email.
-Moved from api/mail_views.py; URL paths are unchanged (see mail/api_urls.py).
-
-Auth: `Authorization: <mail_token>` header (mail account token), except
-/mail/account which uses the account token (mirrors /add-device).
-"""
 
 import json
 import logging
@@ -21,14 +14,9 @@ from core.utils import call_mail_worker
 
 logger = logging.getLogger(__name__)
 
-
-# ============================================================
-# CONNECT (test IMAP credentials)
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def mail_connect(request):
-    """POST /mail/connect — Auth: mail token."""
     mail_account = get_mail_account_from_token(request)
     if not mail_account:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -50,14 +38,9 @@ def mail_connect(request):
     mail_account.save(update_fields=["status"])
     return JsonResponse(result)
 
-
-# ============================================================
-# SEND EMAIL
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def mail_send(request):
-    """POST /mail/send — Auth: mail token."""
     mail_account = get_mail_account_from_token(request)
     if not mail_account:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -118,14 +101,9 @@ def mail_send(request):
     email.save(update_fields=["status"])
     return JsonResponse({"status": False, "reason": result.get("reason", "send failed")})
 
-
-# ============================================================
-# SYNC (fetch inbound emails via IMAP)
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def mail_sync(request):
-    """POST /mail/sync — Auth: mail token."""
     mail_account = get_mail_account_from_token(request)
     if not mail_account:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -155,8 +133,6 @@ def mail_sync(request):
     from django.utils import timezone as dj_timezone
     new_count = 0
     for em in result.get("emails", []):
-        # keyed on (folder, uid) — the same message legitimately exists in
-        # more than one folder, so message_id alone is not unique any more.
         uid = str(em.get("uid") or "")
         if not uid:
             continue
@@ -184,14 +160,9 @@ def mail_sync(request):
 
     return JsonResponse({"status": True, "fetched": result.get("count", 0), "new": new_count})
 
-
-# ============================================================
-# ADD MAIL ACCOUNT (account-level)
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def add_mail_account(request):
-    """POST /mail/account — Auth: account token."""
     account = get_account_from_token(request)
     if not account:
         return JsonResponse({"status": False, "reason": "account token invalid"}, status=401)
@@ -229,11 +200,9 @@ def add_mail_account(request):
         "token": mail_account.mail_token,
     })
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def delete_mail_account(request):
-    """POST /mail/delete-account — Auth: mail token."""
     mail_account = get_mail_account_from_token(request)
     if not mail_account:
         return JsonResponse({"status": False, "reason": "token invalid"}, status=401)
@@ -241,14 +210,9 @@ def delete_mail_account(request):
     mail_account.delete()
     return JsonResponse({"status": True, "reason": "mail account deleted"})
 
-
-# ============================================================
-# WEBHOOK RECEIVER (from Node.js mail worker)
-# ============================================================
 @csrf_exempt
 @require_http_methods(["POST"])
 def mail_webhook_receiver(request):
-    """Internal endpoint: receives events from the Node.js mail worker."""
     body = json.loads(request.body) if request.body else {}
     event_type = body.get("event", "")
     account_id = body.get("accountId", "")

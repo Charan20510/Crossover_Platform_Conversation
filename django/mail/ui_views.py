@@ -1,13 +1,3 @@
-"""
-Mail browser UI views.
-
-Two generations live here:
-
-* `mail_dashboard` — the stats landing page, still on `core/base.html`.
-* everything else — the Roundcube-style client: session-authenticated,
-  CSRF-protected JSON endpoints driving `mail/client.html`. The old
-  token-in-the-DOM API (`mail/views.py`) is untouched for API clients.
-"""
 
 import base64
 import io
@@ -35,18 +25,10 @@ DEFAULT_PAGE_SIZE = 50
 PAGE_SIZES = (25, 50, 100)
 SYSTEM_FOLDERS = ("inbox", "drafts", "sent", "junk", "trash", "archive")
 POLL_SYNC_LIMIT = 20
-# bytes cross the Django<->worker HTTP boundary as base64 in JSON, both
-# directions (see plan) — these caps are the real trust boundary; any
-# client-side caps in mail.js are UX only.
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENTS_TOTAL_BYTES = 25 * 1024 * 1024
 
-
-# ============================================================
-# helpers
-# ============================================================
 def _mailbox(request, mailbox_id=None):
-    """Active MailAccount for this session: explicit id, else remembered, else first."""
     account = get_account(request)
     qs = account.mail_accounts.order_by("created_at")
     mailbox_id = mailbox_id or request.GET.get("mail_account") or request.session.get("mail_account_id")
@@ -56,7 +38,6 @@ def _mailbox(request, mailbox_id=None):
             request.session["mail_account_id"] = str(box.id)
             return box
     return qs.first()
-
 
 def _creds(box):
     return {
@@ -71,21 +52,16 @@ def _creds(box):
         "password": box.password,
     }
 
-
 def _worker(box, path, **extra):
-    """Call the mail worker with this mailbox's credentials merged in.
-    Never raises — a dead worker looks like a failed result."""
     try:
         return call_mail_worker(path, data={**_creds(box), **extra}, token=box.mail_token)
-    except Exception as e:  # requests error / bad JSON
+    except Exception as e:
         logger.error("mail worker %s failed: %s", path, e)
         return {"status": False, "reason": "mail worker unreachable"}
-
 
 def _page_size(request):
     size = request.session.get("mail_page_size") or DEFAULT_PAGE_SIZE
     return size if size in PAGE_SIZES else DEFAULT_PAGE_SIZE
-
 
 def _parse_date(value):
     if not value:
@@ -96,16 +72,13 @@ def _parse_date(value):
         return timezone.now()
     return dt if dt.tzinfo else dt.replace(tzinfo=dt_timezone.utc)
 
-
 LIST_FIELDS = (
     "id", "uid", "folder", "sender", "sender_name", "subject", "to_addrs", "cc",
     "is_read", "is_starred", "is_answered", "is_draft", "has_attachments",
     "size", "thread_key", "received_at", "message_id",
 )
 
-
 def _row(values):
-    """DB values dict -> the JSON shape mail.js renders."""
     return {
         "id": str(values["id"]),
         "uid": values["uid"],
@@ -126,20 +99,8 @@ def _row(values):
         "thread_count": values.get("thread_count", 1),
     }
 
-
 def messages_page(box, folder, page=1, per_page=DEFAULT_PAGE_SIZE, search="", threads=False,
                    unread_only=False):
-    """Paginated rows for one folder. Returns (rows, paginator_page).
-
-    `unread_only` is trailing so no positional caller breaks. It filters
-    before the thread collapse, so `thread_count` counts unread messages
-    only in that view — correct for an unread filter, but worth noting
-    since it differs from the unfiltered per-thread count.
-
-    ponytail: the Threads toggle collapses in Python over the folder's rows
-    (bodies are deferred, so it's a narrow scan). A window function or a
-    stored thread table is the upgrade path if a folder gets huge.
-    """
     qs = IncomingEmail.objects.filter(mail_account=box, folder=folder)
     if search:
         qs = qs.filter(
@@ -166,13 +127,10 @@ def messages_page(box, folder, page=1, per_page=DEFAULT_PAGE_SIZE, search="", th
         items = qs.values(*LIST_FIELDS)
 
     paginator = Paginator(items, per_page)
-    page_obj = paginator.get_page(page)  # clamps out-of-range pages
+    page_obj = paginator.get_page(page)
     return [_row(v) for v in page_obj.object_list], page_obj
 
-
 def folder_list(box):
-    """Folders to show in the left column: the cached IMAP map (or the system
-    defaults before the first sync), each with local total/unread counts."""
     counts = {
         row["folder"]: row
         for row in IncomingEmail.objects.filter(mail_account=box)
@@ -184,7 +142,7 @@ def folder_list(box):
     for kind in SYSTEM_FOLDERS:
         path = fmap.get(kind) or ("INBOX" if kind == "inbox" else kind.capitalize())
         if kind == "archive" and "archive" not in fmap:
-            continue  # only show Archive if the server actually has one
+            continue
         seen.add(path)
         row = counts.get(path, {})
         out.append({
@@ -196,20 +154,15 @@ def folder_list(box):
                     "total": extra.get("total", 0), "unread": extra.get("unread", 0)})
     return out
 
-
 def _body(request):
     return json.loads(request.body) if request.body else {}
 
-
 def _selected(request, ids):
-    """The caller's own messages, by id list. Scoped to their account."""
     account = get_account(request)
     return list(IncomingEmail.objects.filter(
         id__in=[i for i in ids if i], mail_account__account=account))
 
-
 def _upsert(box, folder, em):
-    """Upsert one worker email dict on (mail_account, folder, uid)."""
     uid = str(em.get("uid") or "")
     if not uid:
         return False
@@ -238,9 +191,7 @@ def _upsert(box, folder, em):
     )
     return created
 
-
 def _sync(box, folder, limit=DEFAULT_PAGE_SIZE, offset=0, search=""):
-    """Pull one page of a folder from IMAP into the DB. Returns the worker result."""
     result = _worker(box, "/fetch", folder=folder, limit=limit, offset=offset,
                      search=search, notify=False)
     if not result.get("status"):
@@ -250,10 +201,6 @@ def _sync(box, folder, limit=DEFAULT_PAGE_SIZE, offset=0, search=""):
     box.save(update_fields=["last_sync_at"])
     return result
 
-
-# ============================================================
-# dashboard (legacy chrome — a summary page, not the reading client)
-# ============================================================
 @login_required
 def mail_dashboard(request):
     account = get_account(request)
@@ -282,10 +229,6 @@ def mail_dashboard(request):
         "recent_incoming": recent_incoming,
     })
 
-
-# ============================================================
-# client shell
-# ============================================================
 @login_required
 def mail_client(request):
     box = _mailbox(request)
@@ -299,7 +242,6 @@ def mail_client(request):
         "page_size": _page_size(request),
         "nav_page": "mail",
     })
-
 
 @login_required
 def mail_list(request):
@@ -325,12 +267,10 @@ def mail_list(request):
         "total": total,
         "start": page_obj.start_index(),
         "end": page_obj.end_index(),
-        # the reference footer, built server-side so one rule covers the empty case
         "summary": (f"Messages {page_obj.start_index()} to {page_obj.end_index()} of {total}"
                     if total else "No messages"),
         "folders": folder_list(box),
     })
-
 
 @login_required
 def mail_message(request, pk):
@@ -338,8 +278,6 @@ def mail_message(request, pk):
     em = get_object_or_404(IncomingEmail, pk=pk, mail_account__account=account)
 
     if not em.is_read:
-        # ponytail: fire-and-forget \Seen. If the server rejects it the DB is
-        # still marked read; the next folder sync reconciles.
         _worker(em.mail_account, "/flag", folder=em.folder, uids=[em.uid], flags=["\\Seen"], add=True)
         em.is_read = True
         em.save(update_fields=["is_read"])
@@ -349,8 +287,6 @@ def mail_message(request, pk):
         "message": {
             **_row({f: getattr(em, f) for f in LIST_FIELDS}),
             "body_text": em.body_text,
-            # rendered inside a sandboxed iframe by mail.js — no script can run,
-            # which is why no HTML sanitizer dependency is needed here.
             "body_html": em.body_html,
             "attachments": em.attachments or [],
             "message_id": em.message_id,
@@ -359,13 +295,8 @@ def mail_message(request, pk):
         },
     })
 
-
 @login_required
 def mail_thread(request, pk):
-    """Every message sharing this one's thread_key, folder-scoped to match
-    the collapse in messages_page(). A blank thread_key (e.g. no subject)
-    must NOT group every such message into one giant thread — treat it as
-    "only itself"."""
     account = get_account(request)
     em = get_object_or_404(IncomingEmail, pk=pk, mail_account__account=account)
     if em.thread_key:
@@ -376,16 +307,8 @@ def mail_thread(request, pk):
     rows = qs.order_by("-received_at").values(*LIST_FIELDS)
     return JsonResponse({"status": True, "messages": [_row(v) for v in rows]})
 
-
 @login_required
 def mail_attachment(request, pk, index):
-    """Stream one stored attachment back to the browser.
-
-    `index` selects into the message's own stored metadata list — never a
-    caller-supplied IMAP part id — so a URL can never request an arbitrary
-    IMAP part. Filename/content-type in the response come from our stored
-    metadata, not whatever the worker echoes back.
-    """
     account = get_account(request)
     em = get_object_or_404(IncomingEmail, pk=pk, mail_account__account=account)
     attachments = em.attachments or []
@@ -415,10 +338,6 @@ def mail_attachment(request, pk, index):
         filename=meta.get("filename") or "attachment",
         content_type=meta.get("contentType") or "application/octet-stream")
 
-
-# ============================================================
-# sync
-# ============================================================
 @login_required
 @require_POST
 def mail_sync_folder(request):
@@ -434,7 +353,6 @@ def mail_sync_folder(request):
         return JsonResponse(result)
     return JsonResponse({"status": True, "new": result.get("new", 0),
                          "fetched": result.get("count", 0), "total": result.get("total", 0)})
-
 
 @login_required
 @require_POST
@@ -461,14 +379,8 @@ def mail_sync_folders(request):
                          "server_folders": result.get("folders", []),
                          "folders": folder_list(box)})
 
-
 @login_required
 def mail_poll(request):
-    """Shallow sync of the open folder, then fresh counts.
-
-    ponytail: poll-based freshness — a 20-message sync per tick. IMAP IDLE in
-    the worker is the upgrade path if this proves too chatty.
-    """
     box = _mailbox(request)
     if not box:
         return JsonResponse({"status": False, "reason": "no mailbox configured"})
@@ -480,16 +392,11 @@ def mail_poll(request):
         "folders": folder_list(box),
     })
 
-
-# ============================================================
-# flags / move / delete
-# ============================================================
 FLAG_FIELDS = {
     "seen": ("\\Seen", "is_read"),
     "flagged": ("\\Flagged", "is_starred"),
     "answered": ("\\Answered", "is_answered"),
 }
-
 
 @login_required
 @require_POST
@@ -513,14 +420,11 @@ def mail_flag(request):
             m.save(update_fields=[field])
     return JsonResponse({"status": True, "count": len(messages)})
 
-
 def _grouped(messages):
-    """{(mail_account, folder): [messages]} — IMAP commands are per-mailbox."""
     groups = {}
     for m in messages:
         groups.setdefault((m.mail_account, m.folder), []).append(m)
     return groups
-
 
 @login_required
 @require_POST
@@ -531,7 +435,6 @@ def mail_move(request):
     if not messages or not destination:
         return JsonResponse({"status": False, "reason": "ids and destination required"})
     return JsonResponse(_move(messages, destination))
-
 
 def _move(messages, destination):
     moved, errors = 0, []
@@ -544,18 +447,14 @@ def _move(messages, destination):
         if not result.get("status"):
             errors.append(result.get("reason", "move failed"))
             continue
-        # UIDs are not preserved across folders, so drop the local rows and let
-        # the destination folder's next sync re-create them.
         IncomingEmail.objects.filter(id__in=[m.id for m in group]).delete()
         moved += len(group)
     return {"status": not errors, "moved": moved,
             **({"reason": "; ".join(errors)} if errors else {})}
 
-
 @login_required
 @require_POST
 def mail_delete(request):
-    """Delete = move to Trash. Inside Trash, delete = real expunge."""
     messages = _selected(request, _body(request).get("ids") or [])
     if not messages:
         return JsonResponse({"status": False, "reason": "nothing selected"})
@@ -583,12 +482,7 @@ def mail_delete(request):
     return JsonResponse({"status": not errors, "moved": moved, "expunged": expunged,
                          **({"reason": "; ".join(errors)} if errors else {})})
 
-
-# ============================================================
-# compose / reply / forward / draft
-# ============================================================
 def _quote(original, mode):
-    """Roundcube-style quoted body for reply/forward."""
     if not original:
         return ""
     when = timezone.localtime(original.received_at).strftime("%Y-%m-%d %H:%M")
@@ -602,7 +496,6 @@ def _quote(original, mode):
     quoted = "\n".join(f"> {line}" for line in text.splitlines())
     return f"\n\nOn {when}, {who} wrote:\n{quoted}"
 
-
 def _subject_for(original, mode):
     subject = original.subject if original else ""
     if mode in ("reply", "reply_all"):
@@ -611,9 +504,7 @@ def _subject_for(original, mode):
         return f"Fwd: {subject}" if not subject.lower().startswith(("fwd:", "fw:")) else subject
     return subject
 
-
 def _addr_list(*values):
-    """Dedupe a set of address strings, preserving order."""
     out = []
     for value in values:
         for part in str(value or "").replace(";", ",").split(","):
@@ -622,12 +513,7 @@ def _addr_list(*values):
                 out.append(addr)
     return out
 
-
 def _attachments(body):
-    """Decode + validate compose-time attachments. This is the real trust
-    boundary — mail.js enforces the same caps client-side, but only for UX;
-    an oversize or malformed upload must be rejected here before it ever
-    reaches the worker."""
     out, total = [], 0
     for item in body.get("attachments") or []:
         filename = item.get("filename") or "attachment"
@@ -649,9 +535,7 @@ def _attachments(body):
         })
     return out
 
-
 def _draft_fields(request, body):
-    """Resolve the compose form (plus reply context) into concrete headers."""
     account = get_account(request)
     mode = body.get("mode") or "new"
     original = None
@@ -692,9 +576,7 @@ def _draft_fields(request, body):
         "attachments": _attachments(body),
     }
 
-
 def _raw_message(box, fields, message_id=None):
-    """RFC822 bytes for IMAP APPEND (Sent / Drafts)."""
     msg = EmailMessage()
     msg["From"] = box.email_address
     msg["To"] = fields["to"]
@@ -719,7 +601,6 @@ def _raw_message(box, fields, message_id=None):
                            filename=att.get("filename") or "attachment")
     return msg.as_string(), msg["Message-ID"]
 
-
 @login_required
 @require_POST
 def mail_send(request):
@@ -743,7 +624,6 @@ def mail_send(request):
         "from": box.email_address, "to": fields["to"], "cc": fields["cc"],
         "bcc": fields["bcc"], "subject": fields["subject"], "text": fields["text"],
         "html": fields["html"],
-        # nodemailer's native attachment shape — the worker forwards this as-is.
         "attachments": [
             {"filename": a["filename"], "content": a["content_b64"],
              "encoding": "base64", "contentType": a["contentType"]}
@@ -763,7 +643,6 @@ def mail_send(request):
     box.emails_sent += 1
     box.save(update_fields=["emails_sent"])
 
-    # Copy into IMAP Sent — without this, sent mail never reaches the mailbox.
     raw, _ = _raw_message(box, fields, email.message_id or None)
     appended = _worker(box, "/append", folder=box.folder_path("sent", "Sent"),
                        raw=raw, flags=["\\Seen"])
@@ -775,8 +654,6 @@ def mail_send(request):
         original.is_answered = True
         original.save(update_fields=["is_answered"])
 
-    # last, after /append and /flag — SendTests asserts paths[:3] ==
-    # ["/send", "/append", "/flag"], so nothing may land before that slice.
     if body.get("draft_id"):
         _discard_draft(request, body["draft_id"])
 
@@ -784,17 +661,7 @@ def mail_send(request):
                          "messageId": email.message_id,
                          "sent_appended": bool(appended.get("status"))})
 
-
 def _discard_draft(request, draft_id):
-    """Expunge a superseded draft after a successful re-save.
-
-    Reuses `_selected()` for ownership. Refuses (no-op) if the row is not
-    actually in the account's Drafts folder — otherwise "save draft" could
-    expunge an unrelated message. The local row drops regardless of whether
-    the worker call succeeds; the next sync reconciles either way. This is a
-    separate path from mail_delete on purpose — DeleteRuleTests asserts that
-    view's worker calls are exactly ["/delete"].
-    """
     messages = _selected(request, [draft_id])
     if not messages:
         return False
@@ -804,7 +671,6 @@ def _discard_draft(request, draft_id):
     _worker(em.mail_account, "/delete", folder=em.folder, uids=[em.uid])
     em.delete()
     return True
-
 
 @login_required
 @require_POST
@@ -820,16 +686,10 @@ def mail_draft(request):
     raw, _ = _raw_message(box, fields)
     result = _worker(box, "/append", folder=box.folder_path("drafts", "Drafts"),
                      raw=raw, flags=["\\Draft", "\\Seen"])
-    # append must succeed before the old draft is discarded — a failed
-    # append must leave it untouched.
     if result.get("status") and body.get("draft_id"):
         _discard_draft(request, body["draft_id"])
     return JsonResponse(result)
 
-
-# ============================================================
-# contacts (derived — no model)
-# ============================================================
 @login_required
 def mail_contacts(request):
     account = get_account(request)
@@ -852,10 +712,6 @@ def mail_contacts(request):
         "folders": folder_list(box) if box else [], "nav_page": "contacts",
     })
 
-
-# ============================================================
-# settings (absorbs the old accounts page)
-# ============================================================
 @login_required
 def mail_settings(request):
     account = get_account(request)
@@ -871,7 +727,6 @@ def mail_settings(request):
         "page_sizes": PAGE_SIZES,
         "nav_page": "settings",
     })
-
 
 def _settings_action(request, account):
     body = _body(request)

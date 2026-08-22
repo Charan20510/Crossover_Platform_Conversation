@@ -1,6 +1,3 @@
-"""
-Social token-API URL routing — mirrors the WhatsApp/mail endpoints.
-"""
 
 from django.urls import path
 from . import views

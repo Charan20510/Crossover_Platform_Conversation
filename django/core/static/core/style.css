@@ -1,9 +1,4 @@
-/* =========================================================
-   Messaging Platform UI — minimalist light palette
-   Accent: muted teal (#3b7a6f), not the default AI indigo
-   ========================================================= */
 
-/* ── tokens ─────────────────────────────────────────────── */
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
@@ -17,7 +12,6 @@
   --accent-soft: #eaf3f1;
   --accent-mid: #c2ddd9;
 
-  /* status */
   --ok-bg: #e7f2ec;
   --ok-fg: #2f7d5b;
   --warn-bg: #f5efe2;
@@ -37,7 +31,6 @@
   --transition: 220ms cubic-bezier(.4,0,.2,1);
 }
 
-/* ── reset ───────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; -webkit-font-smoothing: antialiased; }
 body {
@@ -49,7 +42,6 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* ── layout ──────────────────────────────────────────────── */
 .app-shell {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
@@ -60,7 +52,6 @@ a:hover { text-decoration: underline; }
 .app-shell.sidebar-collapsed .sidebar { display: none; }
 .app-shell.sidebar-collapsed .main { grid-column: 1; }
 
-/* ── topbar ──────────────────────────────────────────────── */
 .topbar {
   grid-column: 1 / -1;
   grid-row: 1;
@@ -103,13 +94,10 @@ a:hover { text-decoration: underline; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* "Messaging Platform" is longer than the old "WA Gateway" brand text --
-   drop a notch so it fits the fixed 220px sidebar-width column on one line
-   without needing to widen --sidebar-w (which would resize the sidebar too). */
+
 .topbar-brand span { font-size: .92rem; }
 .topbar-brand svg { color: var(--accent); }
 
-/* ── topbar section tabs (WhatsApp / Mail / Unified) ─────────────────────── */
 .topbar-tabs { display: flex; align-items: center; gap: 2px; }
 .topbar-tab {
   display: inline-flex;
@@ -184,7 +172,6 @@ a:hover { text-decoration: underline; }
 }
 .topbar-logout:hover { background: var(--err-bg); color: var(--err-fg); text-decoration: none; }
 
-/* ── sidebar ─────────────────────────────────────────────── */
 .sidebar {
   grid-column: 1;
   grid-row: 2;
@@ -229,7 +216,6 @@ a:hover { text-decoration: underline; }
 .nav-item.active svg { opacity: 1; }
 .nav-label { flex: 1; }
 
-/* ── main content ────────────────────────────────────────── */
 .main {
   grid-column: 2;
   grid-row: 2;
@@ -251,7 +237,6 @@ a:hover { text-decoration: underline; }
 .page-title { font-size: 1.35rem; font-weight: 700; letter-spacing: -.4px; }
 .page-subtitle { font-size: .85rem; color: var(--muted); margin-top: 2px; }
 
-/* ── cards ───────────────────────────────────────────────── */
 .card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -268,7 +253,6 @@ a:hover { text-decoration: underline; }
   color: var(--ink);
 }
 
-/* ── stat grid ───────────────────────────────────────────── */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -301,7 +285,6 @@ a:hover { text-decoration: underline; }
   font-variant-numeric: tabular-nums;
 }
 
-/* ── tables ──────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; }
 table {
   width: 100%;
@@ -335,7 +318,7 @@ tbody tr:hover { background: var(--surface-2); }
   from { opacity: 0; transform: translateX(-4px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-/* stagger first 20 rows */
+
 tbody tr:nth-child(1)  { animation-delay: .04s; }
 tbody tr:nth-child(2)  { animation-delay: .07s; }
 tbody tr:nth-child(3)  { animation-delay: .10s; }
@@ -345,7 +328,6 @@ tbody tr:nth-child(6)  { animation-delay: .19s; }
 tbody tr:nth-child(7)  { animation-delay: .22s; }
 tbody tr:nth-child(8)  { animation-delay: .25s; }
 
-/* ── badges ──────────────────────────────────────────────── */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -362,7 +344,6 @@ tbody tr:nth-child(8)  { animation-delay: .25s; }
 .badge-free   { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 .badge-paid   { background: var(--accent-soft); color: var(--accent); }
 
-/* ── buttons ─────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -406,7 +387,6 @@ tbody tr:nth-child(8)  { animation-delay: .25s; }
 .btn-sm { padding: 5px 12px; font-size: .8rem; }
 .btn-icon { padding: 6px; border-radius: var(--radius-sm); }
 
-/* ── forms ───────────────────────────────────────────────── */
 .form-group { margin-bottom: 16px; }
 .form-label {
   display: block;
@@ -444,7 +424,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 .phone-input { display: flex; gap: 8px; }
 .phone-input .cc-picker { flex: 0 0 130px; }
 
-/* ── token box ───────────────────────────────────────────── */
 .token-box {
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -459,7 +438,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 }
 .token-box:hover { background: var(--accent-soft); }
 
-/* ── alert ───────────────────────────────────────────────── */
 .alert {
   padding: 12px 16px;
   border-radius: var(--radius-sm);
@@ -470,7 +448,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 .alert-success { background: var(--ok-bg); color: var(--ok-fg); border-left: 3px solid var(--ok-fg); }
 .alert-info { background: var(--info-bg); color: var(--info-fg); border-left: 3px solid var(--info-fg); }
 
-/* ── empty state ─────────────────────────────────────────── */
 .empty {
   text-align: center;
   padding: 48px 24px;
@@ -479,7 +456,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 .empty-icon { font-size: 2.5rem; margin-bottom: 10px; opacity: .4; }
 .empty p { font-size: .9rem; }
 
-/* ── filter bar ──────────────────────────────────────────── */
 .filter-bar {
   display: flex;
   gap: 10px;
@@ -489,7 +465,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 }
 .filter-bar select { max-width: 180px; }
 
-/* ── modal ───────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.3);
@@ -525,7 +500,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
   margin-top: 20px;
 }
 
-/* ── QR / pairing display ────────────────────────────────── */
 .qr-wrap {
   text-align: center;
   padding: 12px 0;
@@ -561,7 +535,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── toasts ──────────────────────────────────────────────── */
 #toast-container {
   position: fixed;
   bottom: 24px; right: 24px;
@@ -587,7 +560,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
   to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 
-/* ── login page ──────────────────────────────────────────── */
 .login-shell {
   min-height: 100vh;
   background: var(--bg);
@@ -622,7 +594,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 .login-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
 .login-sub { font-size: .85rem; color: var(--muted); margin-bottom: 24px; }
 
-/* ── recent messages (inbox list) ────────────────────────── */
 .msg-item {
   display: flex;
   gap: 14px;
@@ -653,12 +624,8 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 }
 .msg-time { font-size: .75rem; color: var(--muted); white-space: nowrap; }
 
-/* ── device row actions ─────────────────────────────────── */
 .device-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
-/* ── Django built-in form widget fallback ───────────────────────
-   PasswordResetView etc. render inputs without our .form-control class;
-   make them look identical so we don't override the CBV forms. */
 .login-card form input[type="email"],
 .login-card form input[type="password"],
 .login-card form input[type="text"],
@@ -690,7 +657,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
   font-size: .86rem;
 }
 
-/* ── reduced motion ──────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
@@ -699,7 +665,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
   }
 }
 
-/* ── WhatsApp Chats (two-pane) ───────────────────────────── */
 .main.main-flush { padding: 0; overflow: hidden; }
 
 .chat-shell {
@@ -795,8 +760,7 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
   display: flex;
   flex-direction: column;
   gap: 8px;
-  /* Original tiled pattern, not WhatsApp's own wallpaper asset — a low-opacity
-     dot/leaf motif drawn from the existing accent token. */
+
   background-color: var(--surface-2);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='none' stroke='%233b7a6f' stroke-width='1' opacity='0.06'%3E%3Ccircle cx='20' cy='20' r='3'/%3E%3Cpath d='M60 10c8 6 8 18 0 24-8-6-8-18 0-24z'/%3E%3Ccircle cx='100' cy='40' r='2'/%3E%3Cpath d='M20 70c8 6 8 18 0 24-8-6-8-18 0-24z'/%3E%3Ccircle cx='70' cy='90' r='3'/%3E%3Cpath d='M105 95c6 5 6 14 0 19-6-5-6-14 0-19z'/%3E%3C/g%3E%3C/svg%3E");
   background-repeat: repeat;
@@ -885,7 +849,6 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
   margin-bottom: 4px;
 }
 
-/* ── contact type-ahead menu ─────────────────────────────────── */
 .ac-menu {
   position: absolute;
   top: calc(100% + 4px);

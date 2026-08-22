@@ -1,6 +1,3 @@
-"""
-Unified Contacts — one client profile per person, spanning every channel.
-"""
 
 import uuid
 from django.db import models
@@ -9,15 +6,7 @@ from django.utils import timezone
 from accounts.models import Account
 from core.utils import contact_key
 
-
 class Contact(models.Model):
-    """One client profile — every channel we can reach them on, in one row.
-
-    ponytail: flat per-platform columns rather than a ContactIdentity(contact,
-    platform, value) child table. The platform set is fixed and small and the
-    edit form is a plain form, not a formset. Upgrade to identity rows only if
-    a contact ever needs more than one value per platform.
-    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="contacts")

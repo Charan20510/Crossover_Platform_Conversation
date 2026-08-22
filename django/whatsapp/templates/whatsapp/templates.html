@@ -9,7 +9,6 @@
   </div>
 </div>
 
-<!-- device picker -->
 <div class="card" style="margin-bottom:16px;">
   <form method="get">
     <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
@@ -28,7 +27,6 @@
 
 {% if selected_device %}
 
-<!-- create / edit form -->
 <div class="card" style="margin-bottom:16px;" id="tpl-form-card">
   <div class="card-title" id="tpl-form-title">New Template</div>
   <form method="post" action="{% url 'whatsapp:templates' %}?device={{ selected_device.id }}" id="tpl-form">
@@ -42,7 +40,7 @@
     </div>
     <div class="form-group">
       <label class="form-label" for="tpl-content">Content</label>
-      <textarea class="form-control" id="tpl-content" name="content" rows="5" required
+<textarea class="form-control" id="tpl-content" name="content" rows="5" required
         placeholder="Hello {name}, welcome! Your {var1} is ready."></textarea>
       <div class="form-hint">Use <code>{name}</code>, <code>{var1}</code>… for bulk personalisation.</div>
     </div>
@@ -53,7 +51,6 @@
   </form>
 </div>
 
-<!-- template list -->
 <div class="card">
   <div class="card-title">Templates for {{ selected_device.name }} ({{ templates|length }})</div>
   {% if templates %}

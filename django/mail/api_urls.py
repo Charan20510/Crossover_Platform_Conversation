@@ -1,7 +1,3 @@
-"""
-Mail token-API URL routing — mirrors the WhatsApp endpoints.
-Paths are byte-identical to the pre-refactor api/urls.py.
-"""
 
 from django.urls import path
 from . import views

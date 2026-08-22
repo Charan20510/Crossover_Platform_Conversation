@@ -1,6 +1,4 @@
 #!/bin/bash
-# Usage: bash connect_whatsapp.sh <DEVICE_TOKEN> <PHONE_WITH_COUNTRY_CODE>
-# Example: bash connect_whatsapp.sh abc123 919876543210
 
 DEVICE_TOKEN="${1:-YOUR_DEVICE_TOKEN}"
 PHONE="${2:-91XXXXXXXXXX}"
@@ -9,7 +7,6 @@ echo "============================="
 echo "  WhatsApp Connection Helper"
 echo "============================="
 
-# --- Disconnect existing session first (forces fresh QR) ---
 echo ""
 echo "0. Disconnecting existing session..."
 curl -s -X POST http://localhost:8000/disconnect \
@@ -17,7 +14,6 @@ curl -s -X POST http://localhost:8000/disconnect \
   -H "Content-Type: application/json" > /dev/null
 sleep 2
 
-# --- QR Code ---
 echo ""
 echo "1. Fetching QR code..."
 QR_RESP=$(curl -s -X POST http://localhost:8000/qr \
@@ -35,7 +31,6 @@ else
   echo "   QR failed: $(echo "$QR_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('reason','unknown'))" 2>/dev/null)"
 fi
 
-# --- Pairing Code ---
 echo ""
 echo "2. Fetching pairing code..."
 CODE_RESP=$(curl -s -X POST http://localhost:8000/qr \

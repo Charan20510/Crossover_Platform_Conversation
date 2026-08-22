@@ -14,7 +14,6 @@
      data-upload="{% url 'whatsapp:chat_upload' %}"
      data-sync="{% url 'whatsapp:chats_sync' %}">
 
-  <!-- left: conversation list -->
   <aside class="chat-list">
     <div class="chat-list-head">
       <div class="chat-list-head-row">
@@ -64,7 +63,6 @@
     </div>
   </aside>
 
-  <!-- right: thread -->
   <section class="chat-pane">
     {% if contact %}
     <header class="chat-pane-head">

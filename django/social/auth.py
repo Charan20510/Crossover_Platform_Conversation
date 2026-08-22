@@ -1,13 +1,8 @@
-"""
-Social-token authentication for the social token API.
-"""
 
 from core.auth import bearer_token
 from .models import SocialAccount
 
-
 def get_social_account_from_token(request):
-    """Extract social account token from Authorization header."""
     token = bearer_token(request)
     if not token:
         return None

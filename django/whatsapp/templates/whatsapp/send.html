@@ -19,7 +19,7 @@
 
 <div class="card">
   <form id="send-form">
-    <!-- device selector -->
+
     <div class="form-group">
       <label class="form-label" for="sel-device">From Device</label>
       <select class="form-control" name="device" id="sel-device">
@@ -34,23 +34,20 @@
       {% if not devices %}<div class="form-hint" style="color:var(--err-fg)">No devices are connected. <a href="{% url 'whatsapp:devices' %}">Connect one →</a></div>{% endif %}
     </div>
 
-    <!-- target -->
     <div class="form-group">
       <label class="form-label" for="target">Target Number(s)</label>
-      <textarea class="form-control" name="target" id="target" rows="3"
+<textarea class="form-control" name="target" id="target" rows="3"
         placeholder="Single: 919876543210&#10;Bulk (comma-separated): 919876543210|Alice,919812345678|Bob&#10;With variables: 919876543210|Alice|Manager"></textarea>
       <div class="form-hint">Bulk: comma-separated. Use <code>|name|var1</code> for variable substitution. Limit: 1000 recipients.</div>
     </div>
 
-    <!-- message -->
     <div class="form-group">
       <label class="form-label" for="message">Message</label>
-      <textarea class="form-control" name="message" id="message" rows="5"
+<textarea class="form-control" name="message" id="message" rows="5"
         placeholder="Hello {name}, this is a message from {var1}!"></textarea>
       <div class="form-hint">Use <code>{name}</code>, <code>{var1}</code>, etc. to personalise bulk messages.</div>
     </div>
 
-    <!-- options row -->
     <div class="form-row">
       <div class="form-group">
         <label class="form-label" for="delay">Delay (seconds or range)</label>
@@ -86,7 +83,6 @@
   </form>
 </div>
 
-<!-- sidebar: tips + templates -->
 <div>
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title">Quick Tips</div>
@@ -117,13 +113,13 @@
   {% endif %}
 </div>
 
-</div><!-- grid -->
+</div>
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-/* expand send layout on narrow screens */
+
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.querySelector('.send-layout');
   if (!layout) return;

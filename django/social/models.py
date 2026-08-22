@@ -1,7 +1,3 @@
-"""
-Social channel models — one pair of tables shared by every platform adapter
-(Telegram, Slack, LinkedIn, ...), mirroring mail.MailAccount / IncomingEmail.
-"""
 
 import uuid
 import secrets
@@ -22,12 +18,7 @@ PLATFORM_CHOICES = [
     ("x", "X (Twitter)"),
 ]
 
-
 class SocialAccount(models.Model):
-    """One connected channel account (e.g. one Telegram bot, one Slack
-    workspace). credentials_enc holds whatever the adapter needs (bot token,
-    OAuth tokens, ...) as encrypted JSON — never a fixed column set, since
-    each platform's auth shape differs."""
 
     STATUS_CHOICES = CONNECTION_STATUS_CHOICES
 
@@ -59,9 +50,7 @@ class SocialAccount(models.Model):
     def __str__(self):
         return f"{self.get_platform_display()}: {self.name}"
 
-
 class SocialMessage(models.Model):
-    """One inbound or outbound message/post on any channel."""
 
     STATUS_CHOICES = SEND_STATUS_CHOICES
 
@@ -69,10 +58,10 @@ class SocialMessage(models.Model):
     social_account = models.ForeignKey(SocialAccount, on_delete=models.CASCADE, related_name="messages")
     direction = models.CharField(max_length=3, choices=[("in", "Inbound"), ("out", "Outbound")])
     external_id = models.CharField(max_length=255, blank=True, db_index=True)
-    target = models.CharField(max_length=255, blank=True)  # chat id / channel / recipient
+    target = models.CharField(max_length=255, blank=True)
     body = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="process")
-    payload = models.JSONField(default=dict, blank=True)  # raw platform payload
+    payload = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:

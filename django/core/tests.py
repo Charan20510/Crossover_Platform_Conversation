@@ -1,4 +1,3 @@
-"""Tests for the Unified Contacts CRUD + type-ahead search."""
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -6,7 +5,6 @@ from django.urls import reverse
 
 from accounts.models import Account
 from .models import Contact
-
 
 class ContactsViewTests(TestCase):
     def setUp(self):

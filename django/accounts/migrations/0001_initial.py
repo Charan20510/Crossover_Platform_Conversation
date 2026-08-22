@@ -1,10 +1,3 @@
-"""
-State-only adoption of the Account model into the accounts app.
-
-Zero DDL: db_table stays "api_account" (already created by
-api/migrations/0001_initial.py), so this migration only rewrites Django's
-migration state, never the database.
-"""
 
 import secrets
 import uuid
@@ -12,7 +5,6 @@ import django.db.models.deletion
 import django.utils.timezone
 from django.conf import settings
 from django.db import migrations, models
-
 
 class Migration(migrations.Migration):
 

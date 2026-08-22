@@ -1,12 +1,3 @@
-"""
-Auth + profile views — Django auth (username/password), account-scoped.
-Moved from api/ui_views.py.
-
-Auth: django.contrib.auth User linked one-to-one to an Account. Regular
-users (is_staff=False) cannot access /admin/ — that's enforced by Django
-itself. All write-actions still delegate to the existing @csrf_exempt
-API endpoints via fetch() on the client.
-"""
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import password_validation
@@ -17,7 +8,6 @@ from django.shortcuts import render, redirect
 
 from .models import Account
 from .utils import get_account
-
 
 def signup_view(request):
     if request.user.is_authenticated:
@@ -30,7 +20,6 @@ def signup_view(request):
         form = {k: request.POST.get(k, "").strip() for k in
                 ("username", "email", "full_name", "password", "confirm")}
 
-        # --- validate ---
         if not form["username"]:
             errors.append("Username is required.")
         elif User.objects.filter(username=form["username"]).exists():
@@ -52,7 +41,6 @@ def signup_view(request):
                 errors.extend(e.messages)
 
         if not errors:
-            # Create Django user (hashed password, is_staff=False)
             user = User.objects.create_user(
                 username=form["username"],
                 email=form["email"],
@@ -63,7 +51,6 @@ def signup_view(request):
             user.last_name = rest[0] if rest else ""
             user.save(update_fields=["first_name", "last_name"])
 
-            # Create linked Account (auto-generates account_token)
             Account.objects.create(
                 user=user,
                 name=form["full_name"] or form["username"],
@@ -74,7 +61,6 @@ def signup_view(request):
             return redirect("core:overview")
 
     return render(request, "accounts/signup.html", {"errors": errors, "form": form})
-
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -90,7 +76,6 @@ def login_view(request):
         if user:
             login(request, user)
             next_url = request.GET.get("next") or request.POST.get("next") or "core:overview"
-            # Only redirect to same-site next values
             if next_url.startswith("/"):
                 return redirect(next_url)
             return redirect("core:overview")
@@ -103,11 +88,9 @@ def login_view(request):
         "next": request.GET.get("next", ""),
     })
 
-
 def logout_view(request):
     logout(request)
     return redirect("accounts:login")
-
 
 @login_required
 def profile_view(request):

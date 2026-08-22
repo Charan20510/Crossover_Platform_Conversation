@@ -1,10 +1,6 @@
-"""
-Django admin configuration — mail.
-"""
 
 from django.contrib import admin
 from .models import MailAccount, Email, IncomingEmail
-
 
 @admin.register(MailAccount)
 class MailAccountAdmin(admin.ModelAdmin):
@@ -13,13 +9,11 @@ class MailAccountAdmin(admin.ModelAdmin):
     search_fields = ("name", "email_address")
     exclude = ("password_enc",)
 
-
 @admin.register(Email)
 class EmailAdmin(admin.ModelAdmin):
     list_display = ("to_addr", "subject", "status", "mail_account", "created_at")
     list_filter = ("status",)
     search_fields = ("to_addr", "subject")
-
 
 @admin.register(IncomingEmail)
 class IncomingEmailAdmin(admin.ModelAdmin):

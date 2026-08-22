@@ -1,9 +1,7 @@
-"""Backfill IncomingMessage.contact from the JID stored in sender."""
 
 from django.db import migrations
 
 from core.utils import contact_key
-
 
 def forwards(apps, schema_editor):
     IncomingMessage = apps.get_model("whatsapp", "IncomingMessage")
@@ -17,7 +15,6 @@ def forwards(apps, schema_editor):
             batch = []
     if batch:
         IncomingMessage.objects.bulk_update(batch, ["contact"])
-
 
 class Migration(migrations.Migration):
 

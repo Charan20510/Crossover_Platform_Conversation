@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Mail{% endblock %} — Messaging Platform</title>
-  <script>
-    // applied before first paint so the theme never flashes
+<script>
     try {
       var t = localStorage.getItem('mailTheme');
       if (t) document.documentElement.setAttribute('data-theme', t);
@@ -18,7 +17,6 @@
 
 <div class="rc-shell">
 
-  <!-- ── icon rail ───────────────────────────────────────── -->
   <nav class="rc-rail" aria-label="Mail sections">
     <a class="rc-avatar" href="{% url 'accounts:profile' %}" title="{{ request.user.username }}">
       {% if mailbox %}{{ mailbox.email_address|slice:":1"|upper }}{% else %}M{% endif %}
@@ -65,7 +63,6 @@
   {% block rc_body %}{% endblock %}
 </div>
 
-<!-- ── compose modal ───────────────────────────────────────── -->
 <div class="rc-modal-backdrop hidden" id="rc-compose">
   <form class="rc-modal" id="rc-compose-form">
     <div class="rc-modal-head">
@@ -85,7 +82,7 @@
       <label class="rc-field"><span>Cc</span><input type="text" name="cc" autocomplete="off"></label>
       <label class="rc-field"><span>Bcc</span><input type="text" name="bcc" autocomplete="off"></label>
       <label class="rc-field"><span>Subject</span><input type="text" name="subject"></label>
-      <textarea name="text" rows="14" placeholder="Write your message…"></textarea>
+<textarea name="text" rows="14" placeholder="Write your message…"></textarea>
       <label class="rc-field"><span>Attachments</span><input type="file" name="attachments" multiple></label>
     </div>
     <div class="rc-modal-foot">
@@ -97,7 +94,6 @@
   </form>
 </div>
 
-<!-- ── about modal ─────────────────────────────────────────── -->
 <div class="rc-modal-backdrop hidden" id="rc-about">
   <div class="rc-modal narrow">
     <div class="rc-modal-head"><span>About</span>

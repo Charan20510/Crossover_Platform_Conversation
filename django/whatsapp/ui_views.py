@@ -1,6 +1,3 @@
-"""
-WhatsApp browser UI views. Moved from api/ui_views.py.
-"""
 
 import uuid
 from datetime import datetime
@@ -18,23 +15,9 @@ from accounts.utils import get_account
 from core.utils import contact_key, to_jid, call_worker
 from .models import Message, IncomingMessage, MessageTemplate, AutoReply, Contact
 
-MAX_UPLOAD_BYTES = 16 * 1024 * 1024  # 16MB
-
-
-# ── chat selectors ────────────────────────────────────────────
-# A "chat" is every inbound + outbound message sharing one bare-digit contact.
-# Inbound lives in IncomingMessage (JID-keyed), outbound in Message (digit-keyed);
-# the merge happens in Python because there is no thread table.
-# By default only contacts we have SENT to are shown — Chats is "conversations
-# I started from this app", not every inbound stranger. started_only=False (the
-# "Show all conversations" toggle) lifts that filter.
+MAX_UPLOAD_BYTES = 16 * 1024 * 1024
 
 def chat_rows(account, device_id=None, limit=None, started_only=True):
-    """One row per unique contact, newest activity first.
-
-    ponytail: full-table scan per call — add a `Conversation` rollup table if an
-    account ever holds enough history for this to show up in page timings.
-    """
     inbox = IncomingMessage.objects.filter(device__account=account)
     sent = Message.objects.filter(device__account=account)
     if device_id:
@@ -80,8 +63,6 @@ def chat_rows(account, device_id=None, limit=None, started_only=True):
         touch(contact_key(m["target"]), m["created_at"], m["body"], "out",
               device=(m["device_id"], m["device__name"]))
 
-    # Saved contact name (from the linked phone's address book) outranks the
-    # WhatsApp push name set on inbound messages.
     saved_names = dict(
         Contact.objects.filter(device__account=account, phone__in=rows.keys())
         .exclude(name="").values_list("phone", "name")
@@ -92,9 +73,7 @@ def chat_rows(account, device_id=None, limit=None, started_only=True):
     ordered = sorted(rows.values(), key=lambda r: r["last_at"], reverse=True)
     return ordered[:limit] if limit else ordered
 
-
 def day_label(dt):
-    """'Today' / 'Yesterday' / 'DD Mon YYYY' for a date-separator pill."""
     local = dj_timezone.localtime(dt).date() if dj_timezone.is_aware(dt) else dt.date()
     today = dj_timezone.localdate()
     delta = (today - local).days
@@ -104,9 +83,7 @@ def day_label(dt):
         return "Yesterday"
     return local.strftime("%d %b %Y")
 
-
 def thread_messages(account, contact, after=None, device_id=None):
-    """Merged inbound + outbound message dicts for one contact, oldest first."""
     contact = contact_key(contact)
     inbox = IncomingMessage.objects.filter(device__account=account, contact=contact)
     sent = Message.objects.filter(device__account=account, target=contact)
@@ -132,7 +109,6 @@ def thread_messages(account, contact, after=None, device_id=None):
     for i in items:
         i["day"] = day_label(i["at"]) if i["at"] else ""
     return items
-
 
 @login_required
 def dashboard(request):
@@ -162,7 +138,6 @@ def dashboard(request):
         "recent_incoming": recent_incoming,
     })
 
-
 @login_required
 def devices_view(request):
     account = get_account(request)
@@ -171,7 +146,6 @@ def devices_view(request):
         "account": account,
         "devices": devices,
     })
-
 
 @login_required
 def send_view(request):
@@ -183,7 +157,6 @@ def send_view(request):
         "devices": devices,
         "all_devices": all_devices,
     })
-
 
 @login_required
 def chats_view(request, contact=None):
@@ -198,7 +171,6 @@ def chats_view(request, contact=None):
 
     chats = chat_rows(account, device_id=filter_id, started_only=not show_all)
 
-    # Mark seen — reading here clears the bell badge, same as the Inbox.
     request.session["inbox_seen_at"] = dj_timezone.now().isoformat()
 
     connected = list(account.devices.filter(status="connect"))
@@ -224,10 +196,8 @@ def chats_view(request, contact=None):
         "show_all": show_all,
     })
 
-
 @login_required
 def chats_feed(request):
-    """JSON poll: chat list + (optionally) new messages in the open thread."""
     account = get_account(request)
     contact = request.GET.get("contact", "")
     device_filter = request.GET.get("device", "")
@@ -264,15 +234,9 @@ def chats_feed(request):
         ]
     return JsonResponse({"chats": chats, "messages": messages})
 
-
 @login_required
 @require_POST
 def chat_upload(request):
-    """Upload a composer attachment, return an absolute URL the worker can fetch.
-
-    Gated on has_attachment_access — the same rule /send already enforces for
-    a bare `url`, applied here so a low-package device can't even get a URL.
-    """
     account = get_account(request)
     device_id = request.POST.get("device")
     device = account.devices.filter(id=device_id).first() if device_id else None
@@ -297,17 +261,9 @@ def chat_upload(request):
 
     return JsonResponse({"status": True, "url": url, "filename": f.name})
 
-
 @login_required
 @require_POST
 def chats_sync(request):
-    """Ask the worker to backfill history for a device's chats.
-
-    Anchors each chat on its oldest locally-known message (needs a WhatsApp
-    message id to anchor on — see worker `syncHistory`/`fetchMessageHistory`).
-    Results come back asynchronously through the webhook's `history_sync`
-    event, not in this response.
-    """
     account = get_account(request)
     device_id = request.POST.get("device")
     device = account.devices.filter(id=device_id).first() if device_id else None
@@ -361,7 +317,6 @@ def chats_sync(request):
 
     return JsonResponse({"status": True, "chats": len(anchors)})
 
-
 @login_required
 def templates_view(request):
     account = get_account(request)
@@ -402,7 +357,6 @@ def templates_view(request):
         "selected_device": selected_device,
         "templates": tpls,
     })
-
 
 @login_required
 def autoreplies_view(request):

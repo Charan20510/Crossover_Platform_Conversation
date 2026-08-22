@@ -1,13 +1,4 @@
-/* Country-code picker for phone inputs (Contact form: WhatsApp / mobile).
- * Server already normalizes phone numbers (core/utils.py: normalize_phone,
- * contact_key) — this file only has to hand it "+<cc> <number>" so typing
- * spacing/format doesn't matter to the user.
- *
- * ponytail: dial-code list covers every ITU-assigned calling code (name,
- * code) but skips shared-code split-outs (e.g. NANP members beyond +1
- * itself). Add a specific entry if a user needs to pick, say, +1 Jamaica
- * distinctly from +1 USA.
- */
+
 (function () {
   var DIAL_CODES = [
     "93 Afghanistan","355 Albania","213 Algeria","1 American Samoa","376 Andorra","244 Angola",
@@ -53,7 +44,6 @@
     });
   }
 
-  // Longest dial-code prefix that matches the start of a bare-digit number.
   function matchDialCode(digits) {
     var best = null;
     DIAL_CODES.forEach(function (c) {
