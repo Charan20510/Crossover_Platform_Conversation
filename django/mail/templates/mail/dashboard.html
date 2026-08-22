@@ -2,44 +2,45 @@
 {% block title %}Mail Dashboard{% endblock %}
 
 {% block content %}
+<div class="section-eyebrow reveal">FIG_020 · MAIL</div>
 <div class="page-header">
   <div>
-    <div class="page-title">Mail Dashboard</div>
-    <div class="page-subtitle">Welcome back, {{ account.name }}</div>
+    <div class="page-title reveal">Mail Dashboard</div>
+    <div class="page-subtitle reveal" style="--stagger-delay:40ms;">Welcome back, {{ account.name }}</div>
   </div>
-  <a href="{% url 'mail:compose' %}" class="btn btn-primary">
+  <a href="{% url 'mail:compose' %}" class="btn btn-primary reveal" style="--stagger-delay:40ms;">
     <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round"/></svg>
     Compose
   </a>
 </div>
 
 <div class="stats-grid">
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:0ms;">
     <div class="stat-label">Mail Accounts</div>
     <div class="stat-value" data-count="{{ mail_accounts|length }}">{{ mail_accounts|length }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:40ms;">
     <div class="stat-label">Connected</div>
     <div class="stat-value" data-count="{{ connected }}">{{ connected }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:80ms;">
     <div class="stat-label">Emails Sent</div>
     <div class="stat-value" data-count="{{ total_sent }}">{{ total_sent }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:120ms;">
     <div class="stat-label">Pending</div>
-    <div class="stat-value" data-count="{{ pending_count }}" style="color:var(--warn-fg)">{{ pending_count }}</div>
+    <div class="stat-value" data-count="{{ pending_count }}">{{ pending_count }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:160ms;">
     <div class="stat-label">Failed</div>
-    <div class="stat-value" data-count="{{ failed_count }}" style="color:var(--err-fg)">{{ failed_count }}</div>
+    <div class="stat-value is-danger" data-count="{{ failed_count }}">{{ failed_count }}</div>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:20px;">
+<div class="card reveal" style="margin-bottom:20px;--stagger-delay:80ms;">
   <div class="card-title">
     Mail Accounts
-    <a href="{% url 'mail:accounts' %}" style="float:right;font-size:.82rem;font-weight:400;">Manage →</a>
+    <a href="{% url 'mail:accounts' %}" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;">Manage →</a>
   </div>
   {% if mail_accounts %}
   <div class="table-wrap">
@@ -76,10 +77,10 @@
   {% endif %}
 </div>
 
-<div class="card">
+<div class="card reveal" style="--stagger-delay:120ms;">
   <div class="card-title">
     Recent Incoming Emails
-    <a href="{% url 'mail:inbox' %}" style="float:right;font-size:.82rem;font-weight:400;">View all →</a>
+    <a href="{% url 'mail:inbox' %}" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;">View all →</a>
   </div>
   {% if recent_incoming %}
     {% for m in recent_incoming %}

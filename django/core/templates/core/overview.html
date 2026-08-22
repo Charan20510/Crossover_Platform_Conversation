@@ -2,53 +2,54 @@
 {% block title %}Unified Dashboard{% endblock %}
 
 {% block content %}
+<div class="section-eyebrow reveal">FIG_001 · UNIFIED</div>
 <div class="page-header">
   <div>
-    <div class="page-title">Unified Dashboard</div>
-    <div class="page-subtitle">WhatsApp + Mail overview for {{ account.name }}</div>
+    <div class="page-title reveal">Unified Dashboard</div>
+    <div class="page-subtitle reveal" style="--stagger-delay:40ms;">WhatsApp + Mail overview for {{ account.name }}</div>
   </div>
 </div>
 
 <div class="stats-grid">
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:0ms;">
     <div class="stat-label">WhatsApp Devices</div>
     <div class="stat-value" data-count="{{ devices|length }}">{{ devices|length }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:40ms;">
     <div class="stat-label">Mail Accounts</div>
     <div class="stat-value" data-count="{{ mail_accounts|length }}">{{ mail_accounts|length }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:80ms;">
     <div class="stat-label">WA Connected</div>
     <div class="stat-value" data-count="{{ wa_connected }}">{{ wa_connected }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:120ms;">
     <div class="stat-label">Mail Connected</div>
     <div class="stat-value" data-count="{{ mail_connected }}">{{ mail_connected }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:160ms;">
     <div class="stat-label">WA Sent</div>
     <div class="stat-value" data-count="{{ wa_sent }}">{{ wa_sent }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:200ms;">
     <div class="stat-label">Emails Sent</div>
     <div class="stat-value" data-count="{{ mail_sent }}">{{ mail_sent }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:240ms;">
     <div class="stat-label">Pending</div>
-    <div class="stat-value" data-count="{{ pending_count }}" style="color:var(--warn-fg)">{{ pending_count }}</div>
+    <div class="stat-value" data-count="{{ pending_count }}">{{ pending_count }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card reveal" style="--stagger-delay:280ms;">
     <div class="stat-label">Failed</div>
-    <div class="stat-value" data-count="{{ failed_count }}" style="color:var(--err-fg)">{{ failed_count }}</div>
+    <div class="stat-value is-danger" data-count="{{ failed_count }}">{{ failed_count }}</div>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;" class="unified-grid">
+<div class="unified-grid reveal" style="--stagger-delay:80ms;">
   <div class="card">
     <div class="card-title">
       WhatsApp
-      <a href="{% url 'whatsapp:dashboard' %}" style="float:right;font-size:.82rem;font-weight:400;">Open →</a>
+      <a href="{% url 'whatsapp:dashboard' %}" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;">Open →</a>
     </div>
     {% if devices %}
     <div class="table-wrap">
@@ -73,7 +74,7 @@
   <div class="card">
     <div class="card-title">
       Mail
-      <a href="{% url 'mail:dashboard' %}" style="float:right;font-size:.82rem;font-weight:400;">Open →</a>
+      <a href="{% url 'mail:dashboard' %}" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;">Open →</a>
     </div>
     {% if mail_accounts %}
     <div class="table-wrap">
@@ -96,7 +97,7 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card reveal" style="--stagger-delay:120ms;">
   <div class="card-title">Recent Activity (WhatsApp + Mail)</div>
   {% if recent_activity %}
     {% for m in recent_activity %}
@@ -123,6 +124,7 @@
 </div>
 
 <style>
-@media (max-width: 800px) { .unified-grid { grid-template-columns: 1fr !important; } }
+.unified-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+@media (max-width: 800px) { .unified-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}

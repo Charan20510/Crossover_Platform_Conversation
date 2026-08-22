@@ -2,14 +2,15 @@
 {% block title %}Devices{% endblock %}
 
 {% block content %}
+<div class="section-eyebrow reveal">FIG_011 · DEVICES</div>
 <div class="page-header">
   <div>
-    <div class="page-title">Devices</div>
-    <div class="page-subtitle">Manage your linked WhatsApp numbers</div>
+    <div class="page-title reveal">Devices</div>
+    <div class="page-subtitle reveal" style="--stagger-delay:40ms;">Manage your linked WhatsApp numbers</div>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:20px;">
+<div class="card reveal" style="margin-bottom:20px;--stagger-delay:80ms;">
   <div class="card-title">Add a Device</div>
   <form id="add-device-form" data-account-token="{{ account.account_token }}">
     <div class="form-row">
@@ -27,7 +28,7 @@
   </form>
 </div>
 
-<div class="card">
+<div class="card reveal" style="--stagger-delay:120ms;">
   <div class="card-title">Your Devices ({{ devices|length }})</div>
   {% if devices %}
   <div class="table-wrap">

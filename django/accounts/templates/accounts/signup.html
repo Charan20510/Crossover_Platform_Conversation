@@ -2,13 +2,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create account — Messaging Platform</title>
-  <link rel="stylesheet" href="{% static 'core/style.css' %}">
+  {% include "core/_head.html" %}
 </head>
 <body>
-<div class="login-shell">
+
+{% include "core/_auth_header.html" %}
+<div class="login-shell" style="min-height:auto;padding:0;">
   <div class="login-card" style="width:440px;">
     <div class="login-logo">
       <div class="login-logo-icon">
@@ -106,13 +106,17 @@
       </button>
     </form>
 
-    <p style="margin-top:20px;font-size:.85rem;color:var(--muted);text-align:center;">
+    <p style="margin-top:20px;font-size:.85rem;color:var(--ink-mute);text-align:center;">
       Already have an account?
       <a href="{% url 'accounts:login' %}">Sign in</a>
     </p>
   </div>
 </div>
+</main>
+
+{% include "core/_footer.html" %}
+
 <div id="toast-container"></div>
-<script src="{% static 'core/core.js' %}"></script>
+<script src="{% static 'core/core.js' %}?v=4"></script>
 </body>
 </html>

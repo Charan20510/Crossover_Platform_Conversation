@@ -45,6 +45,9 @@
       : d.toLocaleDateString([], { year: 'numeric', month: 'short', day: '2-digit' });
   }
 
+  // Theme is shared across the whole app (core/theme.js, localStorage key
+  // "theme"). This just keeps the rail's "Light mode"/"Dark mode" label and
+  // the shared toggle button in sync with whatever set data-theme.
   function applyThemeLabel() {
     const dark = document.documentElement.getAttribute('data-theme') !== 'light';
     document.querySelectorAll('[data-theme-label]').forEach(el => {
@@ -52,12 +55,13 @@
     });
   }
   function toggleTheme() {
-    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('mailTheme', next); } catch (e) {}
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.click();
     applyThemeLabel();
   }
   applyThemeLabel();
+  new MutationObserver(applyThemeLabel)
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   const composeModal = $('#rc-compose');
   const composeForm = $('#rc-compose-form');

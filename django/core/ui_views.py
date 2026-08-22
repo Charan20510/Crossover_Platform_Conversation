@@ -15,6 +15,9 @@ CONTACT_FIELDS = [
     "instagram", "facebook", "x", "linkedin", "slack", "gbp", "telegram",
 ]
 
+def landing(request):
+    return render(request, "core/landing.html")
+
 @login_required
 def overview(request):
     account = get_account(request)

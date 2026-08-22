@@ -2,9 +2,10 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path, include, re_path
+from django.urls import path, include
 from django.http import JsonResponse
-from django.views.generic import RedirectView
+
+from core.ui_views import landing
 
 def health(request):
     return JsonResponse({"status": "ok", "service": "wa_gateway"})
@@ -18,7 +19,7 @@ urlpatterns = [
     path("app/mail/",     include("mail.ui_urls")),
     path("app/",          include("core.ui_urls")),
 
-    re_path(r"^$", RedirectView.as_view(url="/app/", permanent=False)),
+    path("", landing, name="landing"),
 
     path("api/", include(("whatsapp.api_urls", "whatsapp_api"), namespace="whatsapp_api_prefixed")),
     path("api/", include(("mail.api_urls", "mail_api"), namespace="mail_api_prefixed")),

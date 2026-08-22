@@ -1,0 +1,103 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Messaging Platform — WhatsApp and mail, one gateway</title>
+  {% include "core/_head.html" with description="WhatsApp devices and mailboxes, wired into a single inbox, contact book, and API." %}
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="header-brand">
+      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.659 1.438 5.168L2 22l4.979-1.418A9.95 9.95 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+        <path d="M8.5 9.5c.5-1.5 2.5-2.5 4-1.5 1.5 1 1.5 2.5.5 3.5-.7.7-1.5 1-1.5 2m0 3v.01" stroke-linecap="round"/>
+      </svg>
+      Messaging Platform
+    </a>
+    <nav class="header-nav">
+      <a href="#gateway">Gateway</a>
+      <a href="#channels">Channels</a>
+      <a href="{% url 'accounts:login' %}">Sign in</a>
+    </nav>
+    <div class="header-spacer"></div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" type="button">
+      <span class="theme-icon" id="themeIcon">N</span>
+    </button>
+  </div>
+</header>
+
+<main id="main" class="container">
+
+  <section style="padding:56px 0 24px;">
+    <div class="manual-meta-row reveal">
+      <span>FIG_000 · v1 · 2026</span>
+      <span>LICENSE: INTERNAL · STATUS: ACTIVE</span>
+    </div>
+
+    <h1 class="manual-title reveal" style="--stagger-delay:40ms;">One gateway.<br>Every conversation.</h1>
+
+    <p class="manual-tagline reveal" style="--stagger-delay:80ms;">WhatsApp devices and mailboxes, wired into a single inbox, a single contact book, and a single API.</p>
+
+    <p class="manual-attribution reveal" style="--stagger-delay:120ms;">Maintained by the Messaging Platform team. Self-hosted, Django-backed.</p>
+
+    <div class="masthead-ctas reveal" style="--stagger-delay:160ms;">
+      <a href="{% url 'accounts:signup' %}" class="masthead-btn masthead-btn--primary">Get started →</a>
+      <a href="{% url 'accounts:login' %}" class="masthead-btn">Sign in</a>
+    </div>
+
+    <div class="masthead-install reveal" style="--stagger-delay:200ms;" id="gateway">
+      <div class="masthead-install-bar">
+        <span>send-message.sh</span>
+        <button class="copy-chip" type="button" data-copy>Copy</button>
+      </div>
+      <pre id="curl-snippet">curl -X POST https://your-domain/api/whatsapp/send/ \
+  -H "Authorization: Token &lt;your-device-token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "+15551234567", "message": "Hello from the gateway."}'</pre>
+    </div>
+
+    <div class="agent-chips reveal" style="--stagger-delay:240ms;" id="channels">
+      <span class="agent-chip">WhatsApp devices</span>
+      <span class="agent-chip">Mail (IMAP/SMTP)</span>
+      <span class="agent-chip">Unified contacts</span>
+      <span class="agent-chip">REST API</span>
+    </div>
+
+    <p class="manual-caption reveal" style="--stagger-delay:280ms;">Fig. 000 — the gateway, end to end.</p>
+  </section>
+
+  <section style="padding:40px 0;border-top:1px solid var(--rule-soft);">
+    <div class="section-eyebrow reveal">FIG_001 · WHAT IT DOES</div>
+    <h2 class="section-heading reveal" style="--stagger-delay:40ms;">Two channels, one inbox.</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;">
+      <div class="surface-card reveal" style="--stagger-delay:80ms;">
+        <div class="section-eyebrow">WHATSAPP</div>
+        <p>Connect devices by QR, send and receive messages, run templates and auto-replies — all from one dashboard.</p>
+      </div>
+      <div class="surface-card reveal" style="--stagger-delay:120ms;">
+        <div class="section-eyebrow">MAIL</div>
+        <p>IMAP and SMTP mailboxes, synced and searchable, with the same contact book as WhatsApp.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+{% include "core/_footer.html" %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var btn = document.querySelector('[data-copy]');
+  if (btn) btn.addEventListener('click', function () {
+    var text = document.getElementById('curl-snippet').textContent;
+    navigator.clipboard.writeText(text).then(function () {
+      var original = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = original; }, 1500);
+    });
+  });
+});
+</script>
+</body>
+</html>

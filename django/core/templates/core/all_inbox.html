@@ -2,14 +2,15 @@
 {% block title %}All Inbox{% endblock %}
 
 {% block content %}
+<div class="section-eyebrow reveal">FIG_002 · MERGED FEED</div>
 <div class="page-header">
   <div>
-    <div class="page-title">All Inbox</div>
-    <div class="page-subtitle">WhatsApp + Mail, merged</div>
+    <div class="page-title reveal">All Inbox</div>
+    <div class="page-subtitle reveal" style="--stagger-delay:40ms;">WhatsApp + Mail, merged</div>
   </div>
 </div>
 
-<div class="card">
+<div class="card reveal" style="--stagger-delay:80ms;">
   {% if items %}
     {% for m in items %}
     <div class="msg-item">

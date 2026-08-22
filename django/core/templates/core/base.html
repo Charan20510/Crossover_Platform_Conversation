@@ -2,10 +2,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Messaging Platform{% endblock %} — Messaging Platform</title>
-  <link rel="stylesheet" href="{% static 'core/style.css' %}?v=7">
+  {% include "core/_head.html" %}
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -35,9 +33,11 @@
       <span class="bell-badge" id="bell-badge"></span>
     </button>
 
-    <a href="{% url 'accounts:profile' %}" class="topbar-account" title="Profile"
-       style="display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink-light);padding:4px 8px;border-radius:var(--radius-sm);transition:background var(--transition);"
-       onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" type="button">
+      <span class="theme-icon" id="themeIcon">N</span>
+    </button>
+
+    <a href="{% url 'accounts:profile' %}" class="topbar-account" title="Profile">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       {{ request.user.username }}
     </a>
@@ -51,6 +51,7 @@
 
   <main class="main {% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
+    {% include "core/_footer.html" %}
   </main>
 
 </div>
@@ -68,9 +69,9 @@
 
 <div id="toast-container"></div>
 
-<script src="{% static 'core/core.js' %}?v=3"></script>
-{% if nav_section == 'whatsapp' %}<script src="{% static 'whatsapp/whatsapp.js' %}?v=3"></script>{% endif %}
-{% if nav_section == 'mail' %}<script src="{% static 'mail/mail.js' %}?v=2"></script>{% endif %}
+<script src="{% static 'core/core.js' %}?v=4"></script>
+{% if nav_section == 'whatsapp' %}<script src="{% static 'whatsapp/whatsapp.js' %}?v=4"></script>{% endif %}
+{% if nav_section == 'mail' %}<script src="{% static 'mail/mail.js' %}?v=5"></script>{% endif %}
 {% block extra_js %}{% endblock %}
 </body>
 </html>
