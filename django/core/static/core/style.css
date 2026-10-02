@@ -291,6 +291,7 @@ li { margin-bottom: 8px; line-height: 1.62; }
   grid-column: 1 / -1;
   grid-row: 1;
   background: var(--header-bg);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--rule-soft);
   display: flex;
@@ -321,12 +322,9 @@ li { margin-bottom: 8px; line-height: 1.62; }
   font-family: var(--font-display);
   font-size: 1.35rem;
   color: var(--ink);
-  width: var(--sidebar-w);
   padding-right: 20px;
   flex-shrink: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .topbar-brand svg { color: var(--blueprint); }
 
