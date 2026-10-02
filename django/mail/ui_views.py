@@ -643,9 +643,12 @@ def mail_send(request):
     box.emails_sent += 1
     box.save(update_fields=["emails_sent"])
 
-    raw, _ = _raw_message(box, fields, email.message_id or None)
-    appended = _worker(box, "/append", folder=box.folder_path("sent", "Sent"),
-                       raw=raw, flags=["\\Seen"])
+    if box.smtp_host.lower().endswith(("gmail.com", "googlemail.com")):
+        appended = {"status": True}
+    else:
+        raw, _ = _raw_message(box, fields, email.message_id or None)
+        appended = _worker(box, "/append", folder=box.folder_path("sent", "Sent"),
+                           raw=raw, flags=["\\Seen"])
 
     original = fields["original"]
     if original and fields["mode"] in ("reply", "reply_all"):

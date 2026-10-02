@@ -187,10 +187,15 @@ app.post('/fetch', async (req, res) => {
       const uidsToFetch = uids.slice().reverse().slice(start, start + fetchLimit);
 
       const emails = [];
-      for (const uid of uidsToFetch) {
-        const msg = await client.fetchOne(
-          uid, { source: true, envelope: true, flags: true, bodyStructure: true, size: true }, { uid: true });
-        if (!msg) continue;
+      // ponytail: 512KB source cap; fetch text parts by bodyStructure id if huge inline-HTML mails get truncated
+      const fetched = uidsToFetch.length
+        ? await client.fetchAll(uidsToFetch.join(','), {
+            source: { maxLength: 512 * 1024 }, envelope: true, flags: true, bodyStructure: true, size: true,
+          }, { uid: true })
+        : [];
+      fetched.sort((a, b) => b.uid - a.uid);
+      for (const msg of fetched) {
+        const uid = msg.uid;
 
         const envelope = msg.envelope || {};
         const flags = msg.flags || new Set();
